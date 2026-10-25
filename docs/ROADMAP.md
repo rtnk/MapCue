@@ -150,7 +150,7 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 |---|---|---|---|---|
 | R-01 | iOS przez TapCue nieprzetestowany dla flow (CI TapCue czyta tylko hierarchię) | wysokie / wysoki | smoke iOS w STEP-02 na `macos-26`. **Kryterium odblokowania:** dostępny runner macOS arm64 z Xcode (GitHub Actions albo host Roberta) + archiwum TapCue 0.1.0; PASS dla `inspect_screen` i jednej akcji na `com.apple.Preferences`. | 02 |
 | R-02 | brak timeoutu i anulowania w MCP (G-01) | pewne / średni | timeout + kill + `OutcomeUnknown` | 02, 06 |
-| R-03 | kolizja sesji MCP i CLI `hierarchy` na jednym urządzeniu | średnie / średni | PoC w 02; w razie kolizji zamykanie sesji MCP na czas pełnej obserwacji | 02, 08 |
+| R-03 | kolizja sesji MCP i CLI `hierarchy` na jednym urządzeniu | **zmierzone w 02:** `hierarchy` bez kolizji, `test` zrywa driver MCP / średni | adapter zamyka sesję MCP przed `test`, `DriverLost` restartuje sesję; tryb `exclusive` dostępny | 02, 08 |
 | R-04 | niestabilny fingerprint (MAUI, dane dynamiczne, brak `resourceId`) | średnie / wysoki | property tests, `screenHints`, `fingerprintVersion`, metryka słabych kluczy | 03, 05 |
 | R-05 | jakość i koszt LLM | średnie / średni | RuleBased baseline, budżety, analiza raz na stan | 04 |
 | R-06 | błędna klasyfikacja akcji niszczącej | niskie / krytyczny | deny-by-default, `max(agent, reguły)`, tylko profile testowe, zgody per kategoria | 04, 07 |
@@ -166,9 +166,9 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 
 | Platforma | Snapshot | Akcja | Replay/eksport | A11y | Stan |
 |---|---|---|---|---|---|
-| Android emulator (Linux host) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | STEP-00: tylko CLI/MCP bez urządzenia (PASS) |
+| Android emulator (Linux host) | PASS (MCP i CLI) | PASS (`launchApp`, `back`) | PASS (`test --test-output-dir`, bez eksportu) | NOT RUN | STEP-02: API 34 w GitHub Actions z KVM (`tapcue-compatibility.md` §9) |
 | Android emulator (macOS host) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | — |
-| iOS Simulator (macOS arm64) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | R-01 |
+| iOS Simulator (macOS arm64) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | R-01: job `ios` gotowy (`workflow_dispatch`), nie uruchomiony |
 | Android fizyczne | NOT RUN | NOT RUN | NOT RUN | NOT RUN | nieprzetestowane w TapCue |
 | iOS fizyczne | unsupported (TapCue MCP) | unsupported | unsupported | unsupported | luka TapCue |
 

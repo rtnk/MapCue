@@ -1,6 +1,6 @@
 # ADR-0002: Integracja z TapCue: MCP jako ścieżka główna, CLI dla pełnej hierarchii i replay
 
-- Status: Proponowany (PR-00). Elementy oznaczone [PoC] potwierdza STEP-02.
+- Status: Zaakceptowany w STEP-02 (PoC wykonany na emulatorze Androida; iOS: NOT RUN, R-01). Wyniki: `docs/tapcue-compatibility.md` §9.
 - Data: 2026-10-25
 - Dowody: `docs/tapcue-compatibility.md`, `docs/spikes/tapcue-smoke/README.md` (TapCue `v0.1.0`, commit `dbc0f18`)
 
@@ -29,7 +29,7 @@ Opcja **C**:
 - **Serializacja per urządzenie** w MapCue, bo TapCue nie blokuje sesji.
 - **Wersja**: tylko `tapcue --version`, bo `serverInfo.version` jest na sztywno. Wspierane wersje są przypięte w konfiguracji.
 - **Klasyfikacja błędów** po tekście `isError` z tabelą wzorców w testach kontraktowych. Nieznany tekst daje `Unknown`, a nie domysł.
-- [PoC STEP-02] Pomiar czasu: `inspect_screen`, `run` (1 akcja), `hierarchy` CLI, `check-syntax`. Sprawdzenie, czy CLI `hierarchy` w trakcie życia sesji MCP na tym samym urządzeniu działa bez reinstalacji drivera i bez zrywania sesji MCP. Jeśli koliduje, fidelity `full` wymaga chwilowego zamknięcia sesji MCP (opisane w adapterze).
+- [PoC STEP-02, wykonany] Czasy na emulatorze API 34: `inspect_screen` 0,2–1,4 s, `run` z jedną akcją 3,1 s (pierwsze wywołanie z instalacją drivera 13,1 s), `hierarchy` CLI 4,7–5,0 s, `check-syntax` 1,2–1,7 s (dlatego cache po kształcie szablonu). CLI `hierarchy` przy otwartej sesji MCP **nie koliduje** (tryb `shared` domyślny). CLI `test` **koliduje** (zrywa driver sesji MCP), więc adapter zawsze zamyka sesję MCP przed replayem, a błąd `Device server died` traktuje jako `DriverLost` z restartem sesji.
 
 ## Konsekwencje
 
