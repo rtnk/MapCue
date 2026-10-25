@@ -29,7 +29,7 @@ Opcja **C**:
 - **Serializacja per urządzenie** w MapCue, bo TapCue nie blokuje sesji.
 - **Wersja**: tylko `tapcue --version`, bo `serverInfo.version` jest na sztywno. Wspierane wersje są przypięte w konfiguracji.
 - **Klasyfikacja błędów** po tekście `isError` z tabelą wzorców w testach kontraktowych. Nieznany tekst daje `Unknown`, a nie domysł.
-- [PoC STEP-02, wykonany] Czasy na emulatorze API 34: `inspect_screen` 0,2–1,4 s, `run` z jedną akcją 3,1 s (pierwsze wywołanie z instalacją drivera 13,1 s), `hierarchy` CLI 4,7–5,0 s, `check-syntax` 1,2–1,7 s (dlatego cache po kształcie szablonu). CLI `hierarchy` przy otwartej sesji MCP **nie koliduje** (tryb `shared` domyślny). CLI `test` **koliduje** (zrywa driver sesji MCP), więc adapter zawsze zamyka sesję MCP przed replayem, a błąd `Device server died` traktuje jako `DriverLost` z restartem sesji.
+- [PoC STEP-02, wykonany] Czasy na emulatorze API 34: `inspect_screen` 0,15–1,4 s, `run` z jedną akcją 3,1–4,9 s (pierwsze wywołanie z instalacją drivera 13–20 s), `hierarchy` CLI 4,7–8,1 s, `check-syntax` 1,2–2,3 s (dlatego cache po kształcie szablonu). CLI `hierarchy` przy otwartej sesji MCP **nie koliduje** (tryb `shared` domyślny). CLI `test` **koliduje** (zrywa driver sesji MCP), więc adapter zawsze zamyka sesję MCP przed replayem, a błąd `Device server died` traktuje jako `DriverLost` z restartem sesji.
 
 ## Konsekwencje
 

@@ -34,7 +34,7 @@ public sealed class DoctorCommandTests : IDisposable
     [Fact]
     public async Task All_checks_pass_with_a_connected_device()
     {
-        using var fake = FakeTapCue.Create(Fixture("mcp-android-settings.synthetic.jsonl"));
+        using var fake = FakeTapCue.Create(Fixture("mcp-android-settings.jsonl"));
         var (exit, output, error, _) = await CliTestHarness.RunWithEnvironmentAsync(Env(("MAESTRO_CLOUD_API_KEY", "mk-secret")), "doctor", "--config", Config(fake.Executable), "--device", "emulator-5554");
 
         Assert.Equal(string.Empty, error);
@@ -45,7 +45,7 @@ public sealed class DoctorCommandTests : IDisposable
         Assert.StartsWith("WARN  tapcue.environment   1 MAESTRO_* variable(s)", lines[3], StringComparison.Ordinal);
         Assert.Contains("inspect_screen, list_devices, run", lines[4], StringComparison.Ordinal);
         Assert.Equal("PASS  devices              emulator-5554 (android)", lines[5]);
-        Assert.Equal("PASS  device.inspect       emulator-5554: 16 element(s) on screen", lines[6]);
+        Assert.Equal("PASS  device.inspect       emulator-5554: 73 element(s) on screen", lines[6]);
         Assert.DoesNotContain("mk-secret", output, StringComparison.Ordinal);
         Assert.DoesNotContain(fake.ObservedEnvironment(), l => l.StartsWith("MAESTRO_", StringComparison.Ordinal));
     }
@@ -63,7 +63,7 @@ public sealed class DoctorCommandTests : IDisposable
     [Fact]
     public async Task Device_outside_the_allowlist_is_not_usable()
     {
-        using var fake = FakeTapCue.Create(Fixture("mcp-android-settings.synthetic.jsonl"));
+        using var fake = FakeTapCue.Create(Fixture("mcp-android-settings.jsonl"));
         var config = Config(fake.Executable, "  deviceIds: [R58*]\n");
         var (exit, output, _, _) = await CliTestHarness.RunWithEnvironmentAsync(Env(), "doctor", "-c", config);
         Assert.Equal(ExitCodes.PrerequisitesFailed, exit);
@@ -73,7 +73,7 @@ public sealed class DoctorCommandTests : IDisposable
     [Fact]
     public async Task Unsupported_version_stops_further_checks()
     {
-        using var fake = FakeTapCue.Create(Fixture("mcp-android-settings.synthetic.jsonl"), null, "version:9.9.9");
+        using var fake = FakeTapCue.Create(Fixture("mcp-android-settings.jsonl"), null, "version:9.9.9");
         var (exit, output, _, _) = await CliTestHarness.RunWithEnvironmentAsync(Env(), "doctor", "-c", Config(fake.Executable));
         Assert.Equal(ExitCodes.PrerequisitesFailed, exit);
         Assert.Contains("FAIL  tapcue.version       TapCue 9.9.9 is not in tapcue.supportedVersions (0.1.0)", output, StringComparison.Ordinal);

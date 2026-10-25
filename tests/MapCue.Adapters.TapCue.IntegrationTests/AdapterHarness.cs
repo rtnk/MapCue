@@ -30,7 +30,7 @@ internal sealed class AdapterHarness : IAsyncDisposable
     public static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "tapcue-0.1.0", name);
 
     public static AdapterHarness Create(
-        string? fixture = "mcp-android-settings.synthetic.jsonl",
+        string? fixture = "mcp-android-settings.jsonl",
         string[]? scenarios = null,
         Func<TapCueAdapterOptions, TapCueAdapterOptions>? configure = null,
         IReadOnlyDictionary<string, string>? parentEnvironment = null,
@@ -39,7 +39,7 @@ internal sealed class AdapterHarness : IAsyncDisposable
     {
         var fake = FakeTapCue.Create(
             fixture is null ? null : Fixture(fixture),
-            Fixture("hierarchy-android-settings.synthetic.txt"),
+            Fixture("hierarchy-android-launcher.txt"),
             scenarios ?? []);
         var work = Path.Combine(fake.Directory, "work");
         var options = new TapCueAdapterOptions(

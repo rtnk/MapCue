@@ -33,7 +33,7 @@ public class CliRunnerTests
         await using var h = AdapterHarness.Create();
         var observation = await h.Adapter.ObserveAsync(_emulator, new(AdapterHarness.App, ObservationFidelity.Full), CancellationToken.None);
         Assert.Equal(ObservationFidelity.Full, observation.Fidelity);
-        Assert.Contains(observation.Elements, e => e.ResourceId == "com.android.settings:id/recycler_view" && e.Scrollable);
+        Assert.Contains(observation.Elements, e => e.ResourceId == "com.google.android.apps.nexuslauncher:id/date" && e.Clickable);
         Assert.StartsWith("{", observation.RawPayload, StringComparison.Ordinal);
         Assert.Empty(h.Fake.Calls());
     }
