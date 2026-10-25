@@ -1,0 +1,10 @@
+# Replay probe for the smoke test: launch a system app and assert it is in the foreground.
+# APP_ID is passed with `-e APP_ID=...` by default via the env block below; the default is Android Settings.
+appId: ${APP_ID}
+env:
+  APP_ID: com.android.settings
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: replay-launched
