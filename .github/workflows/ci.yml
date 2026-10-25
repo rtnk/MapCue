@@ -58,3 +58,12 @@ jobs:
           code=$?
           set -e
           test "$code" -eq 3 || { echo "expected exit code 3 (not implemented), got $code"; exit 1; }
+
+      - name: Graph import smoke (recorded Android snapshots, twice = same graph)
+        run: |
+          ws="$RUNNER_TEMP/mapcue-graph"
+          first=$(dotnet run --project src/MapCue.Cli --configuration Release --no-build -- graph import tests/Fixtures/graph-import/android-settings-cycle.json --workspace "$ws")
+          second=$(dotnet run --project src/MapCue.Cli --configuration Release --no-build -- graph import tests/Fixtures/graph-import/android-settings-cycle.json --workspace "$ws")
+          echo "$first"; echo "$second"
+          test "$(echo "$first" | grep '^graph ')" = "$(echo "$second" | grep '^graph ')"
+          echo "$second" | grep -q 'new-states=0 new-variants=0 new-tasks=0 already-committed=2'

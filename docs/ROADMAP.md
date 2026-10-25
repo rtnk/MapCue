@@ -10,9 +10,9 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 |---|---|---|---|---|
 | 00 | Discovery & architecture | P0 | — | zmergowany (PR #2) |
 | 01 | Solution foundation | P0 | 00 | zmergowany (PR #3) |
-| 02 | TapCue adapter | P0 | 01 | PR #4 otwarty (czeka na review i merge) |
+| 02 | TapCue adapter | P0 | 01 | zmergowany (PR #4) |
 | 02B | Demo/fixture app (MAUI) **[propozycja, wymaga zgody]** | P0 | 01 (równolegle z 03/04 po 02) | nie rozpoczęty |
-| 03 | Graph & persistence | P0 | 01 | nie rozpoczęty |
+| 03 | Graph & persistence | P0 | 01 | PR otwarty (czeka na review i merge) |
 | 04 | Agent interpretation | P0 | 01, 03 | nie rozpoczęty |
 | 05 | Vertical slice crawler | P0 (MVP) | 02, 02B, 03, 04 | nie rozpoczęty |
 | 06 | Frontier scheduler | P0 (MVP) | 05 | nie rozpoczęty |
@@ -151,14 +151,14 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 | R-01 | iOS przez TapCue nieprzetestowany dla flow (CI TapCue czyta tylko hierarchię) | wysokie / wysoki | smoke iOS w STEP-02 na `macos-26`. **Kryterium odblokowania:** dostępny runner macOS arm64 z Xcode (GitHub Actions albo host Roberta) + archiwum TapCue 0.1.0; PASS dla `inspect_screen` i jednej akcji na `com.apple.Preferences`. | 02 |
 | R-02 | brak timeoutu i anulowania w MCP (G-01) | pewne / średni | timeout + kill + `OutcomeUnknown` | 02, 06 |
 | R-03 | kolizja sesji MCP i CLI `hierarchy` na jednym urządzeniu | **zmierzone w 02:** `hierarchy` bez kolizji, `test` zrywa driver MCP / średni | adapter zamyka sesję MCP przed `test`, `DriverLost` restartuje sesję; tryb `exclusive` dostępny | 02, 08 |
-| R-04 | niestabilny fingerprint (MAUI, dane dynamiczne, brak `resourceId`) | średnie / wysoki | property tests, `screenHints`, `fingerprintVersion`, metryka słabych kluczy | 03, 05 |
+| R-04 | niestabilny fingerprint (MAUI, dane dynamiczne, brak `resourceId`) | średnie / wysoki | property tests (STEP-03: generowane ekrany i nagrania Androida), `fingerprintVersion` (= 1, przypięte hashe nagrań), metryka słabych kluczy (`WeakKeyCount`); `screenHints` i kalibracja progów na danych 02B w STEP-05 | 03, 05 |
 | R-05 | jakość i koszt LLM | średnie / średni | RuleBased baseline, budżety, analiza raz na stan | 04 |
 | R-06 | błędna klasyfikacja akcji niszczącej | niskie / krytyczny | deny-by-default, `max(agent, reguły)`, tylko profile testowe, zgody per kategoria | 04, 07 |
 | R-07 | brak automatyzacji czytników ekranu (G-05) | pewne / średni | `unsupported` + protokół manualny | 08 |
 | R-08 | Linux nieoficjalny dla TapCue | średnie / niski | macOS arm64 jako referencja; Android na Linuksie best effort | 02, 12 |
 | R-09 | polityka sieci środowiska agenta blokuje narzędzia (np. `dl.google.com`) | wystąpiło / średni | archiwa Release, CI GitHub, jawne NOT RUN | każdy |
 | R-10 | workloady MAUI i koszt macOS w CI | średnie / średni | Android build na ubuntu, iOS job ręczny | 02B, 12 |
-| R-11 | SQLite: jeden zapisujący | pewne / niski (MVP) | jedna instancja na workspace; port pod przyszły store | 03, 06 |
+| R-11 | SQLite: jeden zapisujący | pewne / niski (MVP) | jedna instancja na workspace (STEP-03: blokada `.mapcue/lock`, serializowane transakcje `BEGIN IMMEDIATE`); port pod przyszły store | 03, 06 |
 | R-12 | zmiany TapCue między wersjami | średnie / średni | przypięcie wersji, fixtures per wersja | 02 |
 | R-13 | wyciek sekretów przez echo `env_vars` (G-06) | pewne bez mitigacji / wysoki | czyste env + redakcja wyniku + test | 02 |
 

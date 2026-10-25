@@ -4,4 +4,10 @@
     <ProjectReference Include="..\MapCue.Domain\MapCue.Domain.csproj" />
     <ProjectReference Include="..\MapCue.Contracts\MapCue.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Migrations\*.sql" LogicalName="MapCue.Migrations.%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

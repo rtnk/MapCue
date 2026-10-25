@@ -2,7 +2,7 @@
 
 MapCue (nazwa robocza, TOOL-009 „MobileGraph Explorer”) to planowane narzędzie CLI w .NET 10. Ma deterministycznie eksplorować aplikacje mobilne (Android/iOS) przez [TapCue](https://github.com/rtnk/TapCue). Buduje trwały graf ekranów, stanów i wariantów profili, kontrakty ekranów z macierzą dostępności, a zweryfikowane ścieżki eksportuje jako flow YAML TapCue.
 
-**Stan:** STEP-02 (adapter TapCue). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0 i działające `mapcue doctor`. Pozostałe komendy to zaślepki. Eksploracja jeszcze nie działa (od STEP-05).
+**Stan:** STEP-03 (graf i trwałość). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0, działające `mapcue doctor`, a od STEP-03 model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Pozostałe komendy to zaślepki. Eksploracja jeszcze nie działa (od STEP-05).
 
 ## Szybki start (bez urządzenia, TapCue i LLM)
 
@@ -16,7 +16,17 @@ dotnet run --project src/MapCue.Cli -- --help
 dotnet run --project src/MapCue.Cli -- explore --config docs/examples/mapcue.example.yaml   # waliduje konfigurację, potem „not implemented”
 ```
 
-Kody wyjścia `mapcue`: `0` sukces, `1` błędna linia poleceń, `2` błędna konfiguracja, `3` komenda jeszcze niezaimplementowana, `4` `doctor` znalazł niespełniony warunek. Przykład konfiguracji: [`docs/examples/mapcue.example.yaml`](docs/examples/mapcue.example.yaml). Logi to JSON lines na stderr, zawsze po redakcji; poziom ustawia `MAPCUE_LOG_LEVEL` (domyślnie `Warning`).
+Kody wyjścia `mapcue`: `0` sukces, `1` błędna linia poleceń, `2` błędna konfiguracja, `3` komenda jeszcze niezaimplementowana, `4` `doctor` znalazł niespełniony warunek, `5` błędny plik wejściowy (np. plan `graph import`), `6` workspace zajęty przez inny proces MapCue albo schemat bazy nowszy lub zmieniony. Przykład konfiguracji: [`docs/examples/mapcue.example.yaml`](docs/examples/mapcue.example.yaml). Logi to JSON lines na stderr, zawsze po redakcji; poziom ustawia `MAPCUE_LOG_LEVEL` (domyślnie `Warning`).
+
+## Graf bez urządzenia: `mapcue graph import`
+
+Narzędzie testowe: importuje nagrane snapshoty i przejścia do workspace (`.mapcue/` albo `--workspace`) tak, jak zrobiłaby to próba eksploracji. Powtórny import tego samego planu niczego nie zmienia.
+
+```bash
+dotnet run --project src/MapCue.Cli -- graph import tests/Fixtures/graph-import/android-settings-cycle.json --workspace /tmp/mapcue-demo
+```
+
+Plan (`mapcue.graph-import/1`, JSON) opisuje kontekst (profil, platforma, aplikacja, build, locale, scenariusz), obserwacje (pliki `tapcue-inspect-screen`, `tapcue-hierarchy`, `tapcue-mcp-transcript` z `index`, `mapcue-elements`) i przejścia (`from`, `action`, `to`, `outcome`). Przykład na nagraniach z emulatora: [`tests/Fixtures/graph-import/android-settings-cycle.json`](tests/Fixtures/graph-import/android-settings-cycle.json). Workspace: `mapcue.db` (SQLite, WAL), `blobs/sha256/..` (zredagowane snapshoty), `lock`.
 
 ## TapCue i `mapcue doctor`
 
