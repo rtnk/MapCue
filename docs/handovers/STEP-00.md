@@ -4,7 +4,7 @@
 
 - Status: **DONE** (dokumentacja kompletna). Kontrole na urządzeniach mają status NOT RUN, z przyczyną opisaną niżej.
 - Branch: `docs/step-00-discovery`
-- PR URL i status: https://github.com/rtnk/MapCue/pull/2 (open, czeka na review i merge przez Roberta)
+- PR URL i status: <https://github.com/rtnk/MapCue/pull/2> (open, czeka na review i merge przez Roberta)
 - Commit SHA: `96ce8df9dfcaf2ebdd8baf7325714a3e2851856c` (dokumenty). Ten handoff jest w kolejnym commicie na tym samym branchu, więc aktualny head jest w PR.
 - Base branch/SHA: `main` @ `f86e3a70d95f7856c35cfbe97db748f5d07718f7`
 - Data i środowisko: 2026-10-25. Kontener Linux x86_64 (sesja Claude Code w chmurze), OpenJDK 21.0.12, Node 22.22, Python 3. Brak .NET SDK, `adb`, KVM, macOS i Xcode. Ruch sieciowy przez proxy, `dl.google.com` zablokowany (403).
