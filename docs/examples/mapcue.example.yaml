@@ -1,0 +1,47 @@
+# Example MapCue configuration (schema mapcue.config/1).
+# Validated by `mapcue explore --config docs/examples/mapcue.example.yaml` and by MapCue.Cli.Tests.
+# Unknown keys are errors. Omitted budgets use the safe defaults from docs/architecture.md §10.2.
+schemaVersion: mapcue.config/1
+workspace: .mapcue
+
+# Required. MapCue refuses to start without both allowlists; only `test` environments exist.
+allowlist:
+  appIds:
+    - com.example.mapcue.demo
+  environments:
+    - test
+  deviceIds: []        # optional; empty = any device reported by TapCue
+  profileIds: []       # optional; empty = all profiles below
+
+budgets:
+  maxDepth: 8
+  maxScreens: 40
+  maxStates: 120
+  maxActions: 300
+  maxDuration: 60m
+  maxRetries: 2          # infrastructure retries only
+  maxListRowsPerTemplate: 2
+  uiSettleTimeout: 5s
+  actionTimeout: 30s
+  observeTimeout: 20s
+
+agent:
+  runtime: container     # `local` additionally needs allowLocalExecution: true
+  allowLocalExecution: false
+  sendScreenshots: false
+  maxCalls: 100
+  maxTokens: 1000000
+  maxCostUsd: 5
+
+profiles:
+  - profileId: basic
+    platform: android
+    appId: com.example.mapcue.demo
+    environment: test
+    dataIsolation: shared-readonly
+    inputs:
+      # Secrets are references only; values are read from the environment at execution time.
+      username: secret://env/MAPCUE_DEMO_USER
+      password: secret://env/MAPCUE_DEMO_PASSWORD
+      email: generated:email
+    capabilities: []

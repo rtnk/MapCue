@@ -8,8 +8,8 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 
 | Etap | Nazwa | Priorytet | Zależy od | Status |
 |---|---|---|---|---|
-| 00 | Discovery & architecture | P0 | — | PR #2 otwarty (czeka na review i merge) |
-| 01 | Solution foundation | P0 | 00 | nie rozpoczęty |
+| 00 | Discovery & architecture | P0 | — | zmergowany (PR #2) |
+| 01 | Solution foundation | P0 | 00 | PR otwarty (czeka na review i merge) |
 | 02 | TapCue adapter | P0 | 01 | nie rozpoczęty |
 | 02B | Demo/fixture app (MAUI) **[propozycja, wymaga zgody]** | P0 | 01 (równolegle z 03/04 po 02) | nie rozpoczęty |
 | 03 | Graph & persistence | P0 | 01 | nie rozpoczęty |

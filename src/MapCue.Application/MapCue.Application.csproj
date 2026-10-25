@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\MapCue.Domain\MapCue.Domain.csproj" />
+    <ProjectReference Include="..\MapCue.Contracts\MapCue.Contracts.csproj" />
+  </ItemGroup>
+</Project>
