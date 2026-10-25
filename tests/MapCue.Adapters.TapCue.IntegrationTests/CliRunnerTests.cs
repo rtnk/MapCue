@@ -65,6 +65,19 @@ public class CliRunnerTests
     }
 
     [Fact]
+    public async Task Replay_closes_the_mcp_session_first_even_in_shared_mode()
+    {
+        // R-03: on the emulator a CLI `test` killed the open MCP session's driver connection.
+        await using var h = AdapterHarness.Create();
+        await h.Adapter.ListDevicesAsync(CancellationToken.None);
+        var flow = Path.Combine(h.Fake.Directory, "replay.yaml");
+        await File.WriteAllTextAsync(flow, "appId: com.android.settings\n---\n- launchApp\n");
+        await h.Adapter.RunFlowAsync(_emulator, new FlowFile(flow), new FlowRunOptions(TimeSpan.FromSeconds(30), null), CancellationToken.None);
+        await h.Adapter.ListDevicesAsync(CancellationToken.None);
+        Assert.Equal(2, h.Adapter.SessionStarts);
+    }
+
+    [Fact]
     public async Task Failed_replay_is_classified()
     {
         await using var h = AdapterHarness.Create(scenarios: ["test-fail"]);

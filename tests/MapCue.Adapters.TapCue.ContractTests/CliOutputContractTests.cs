@@ -61,11 +61,13 @@ public class CliOutputContractTests
     [InlineData("Failed to run flow: Package com.example is not installed", DeviceErrorKind.AppLaunchFailed, false)]
     [InlineData("Maestro driver timed out during viewHierarchy call with: x", DeviceErrorKind.DriverTimeout, true)]
     [InlineData("Device emulator-5554 (ANDROID/REAL) is not supported by the MCP server", DeviceErrorKind.DeviceNotSupported, false)]
+    [InlineData("Failed to inspect screen: Device server died during 'deviceInfo' on emulator-5554 (10708ms since last byte, connection age 31407ms): StatusRuntimeException: UNAVAILABLE", DeviceErrorKind.DriverLost, true)]
     [InlineData("Something completely new", DeviceErrorKind.Unknown, true)]
     [InlineData("", DeviceErrorKind.Unknown, true)]
     public void Error_table_from_tapcue_sources(string text, DeviceErrorKind kind, bool reached)
     {
-        // Messages taken from TapCue 0.1.0 sources (Orchestra.kt, AndroidDriver.kt, IOSDriver.kt, McpMaestroSessionManager.kt).
+        // Messages taken from TapCue 0.1.0 sources (Orchestra.kt, AndroidDriver.kt, IOSDriver.kt, McpMaestroSessionManager.kt);
+        // the "Device server died" text was observed verbatim in the STEP-02 Android emulator smoke.
         Assert.Equal((kind, reached), TapCueErrorClassifier.ClassifyDetailed(text));
     }
 }

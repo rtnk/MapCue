@@ -99,6 +99,9 @@ public enum DeviceErrorKind
     AppLaunchFailed,
     AppCrashed,
     DriverTimeout,
+
+    /// <summary>The on-device driver connection of the TapCue session died (e.g. another TapCue client took the device, R-03); the session must be restarted.</summary>
+    DriverLost,
     PolicyRejected,
     Timeout,
     TransportClosed,

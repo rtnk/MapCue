@@ -159,4 +159,25 @@ public class FaultInjectionTests
         Assert.Equal(ActionOutcome.Failed, safe.Outcome);
         Assert.Equal(2, h.Fake.Calls().Count);
     }
+
+    [Fact]
+    public async Task Lost_device_driver_restarts_the_session_and_retries_observations()
+    {
+        await using var h = AdapterHarness.Create(scenarios: ["driver-lost-once:inspect_screen"], configure: o => o with { Budgets = o.Budgets with { MaxRetries = 1 } });
+        var observation = await h.Adapter.ObserveAsync(_emulator, new(AdapterHarness.App, ObservationFidelity.Fast), CancellationToken.None);
+        Assert.NotEmpty(observation.Elements);
+        Assert.Equal(2, h.Adapter.SessionStarts);
+    }
+
+    [Fact]
+    public async Task Lost_device_driver_during_an_action_closes_the_session_without_retrying_it()
+    {
+        await using var h = AdapterHarness.Create(scenarios: ["driver-lost-once:run"], configure: Short(retries: 2));
+        var result = await h.Adapter.ExecuteAsync(_emulator, Tap(RiskClass.Navigational), CancellationToken.None);
+        Assert.Equal(ActionOutcome.Failed, result.Outcome);
+        Assert.Equal(DeviceErrorKind.DriverLost, result.ErrorKind);
+        Assert.Equal(["run"], h.Fake.Calls());
+        await h.Adapter.ListDevicesAsync(CancellationToken.None);
+        Assert.Equal(2, h.Adapter.SessionStarts);
+    }
 }

@@ -9,7 +9,8 @@ namespace MapCue.Adapters.TapCue.FakeServer;
 /// <c>FakeServer [--fixture f.jsonl] [--scenario s]... [--hierarchy h.json] [--state-dir d] -- &lt;tapcue args&gt;</c>.
 /// <c>mcp</c> replays a recorded JSONL fixture (requests are matched by method, tool name and arguments without
 /// <c>env</c>). Scenarios inject faults: <c>hang-on:TOOL</c>, <c>exit-on:TOOL</c>, <c>hang-handshake</c>,
-/// <c>missing-tool:TOOL</c>, <c>noise</c>, <c>ping-first</c>, <c>echo-env</c>, <c>version:X</c>, <c>hang-cli</c>.
+/// <c>missing-tool:TOOL</c>, <c>noise</c>, <c>ping-first</c>, <c>echo-env</c>, <c>version:X</c>, <c>hang-cli</c>,
+/// <c>driver-lost-once:TOOL</c>, <c>test-fail</c>.
 /// In the state directory it writes <c>env.txt</c> (its environment), <c>calls.txt</c> (one tool name per call)
 /// and <c>child.pid</c> (a grandchild started before hanging, to verify process-tree kills).
 /// </summary>
@@ -187,6 +188,16 @@ public static class Program
                 if (Scenario("exit-on") == tool)
                 {
                     return 3;
+                }
+
+                // The first call to TOOL across all fake processes reports a dead device driver (seen on the emulator, R-03).
+                if (Scenario("driver-lost-once") == tool && _stateDir is not null && !File.Exists(Path.Combine(_stateDir, "driver-lost")))
+                {
+                    await File.WriteAllTextAsync(Path.Combine(_stateDir, "driver-lost"), "1");
+                    var lost = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = Text("Failed to inspect screen: Device server died during 'deviceInfo' on emulator-5554 (10708ms since last byte, connection age 31407ms): StatusRuntimeException: UNAVAILABLE", true) };
+                    await stdout.WriteLineAsync(lost.ToJsonString());
+                    await stdout.FlushAsync();
+                    continue;
                 }
             }
 

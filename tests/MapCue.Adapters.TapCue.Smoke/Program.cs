@@ -77,7 +77,7 @@ public static class Program
             await Act(safeAction, adapter, device, action);
             await Observe("inspect_screen.after-action", adapter, device, appId, ObservationFidelity.Fast, outDir, required: true);
 
-            // R-03: CLI hierarchy while the MCP session is alive, then MCP again.
+            // R-03: CLI hierarchy while the MCP session is alive, then MCP again. (`test` always closes the session first.)
             var startsBefore = adapter.SessionStarts;
             await Observe("hierarchy (shared, MCP alive)", adapter, device, appId, ObservationFidelity.Full, outDir, required: false);
             await Observe("inspect_screen.after-hierarchy", adapter, device, appId, ObservationFidelity.Fast, outDir, required: false);
@@ -94,7 +94,8 @@ public static class Program
                 var files = result.TestOutputDirectory is { } dir && Directory.Exists(dir)
                     ? Directory.GetFiles(dir, "*", SearchOption.AllDirectories).Select(f => Path.GetRelativePath(dir, f)).Order(StringComparer.Ordinal).ToList()
                     : [];
-                var expected = new[] { "manifest.json", "commands.json" }.Where(f => !files.Contains(f)).ToList();
+                // TapCue 0.1.0 writes into <dir>/<timestamp>/<flow name>/ (observed in the STEP-02 smoke).
+                var expected = new[] { "manifest.json", "commands.json" }.Where(f => !files.Any(x => Path.GetFileName(x) == f)).ToList();
                 if (result.Outcome != ActionOutcome.Succeeded || expected.Count > 0)
                 {
                     throw new InvalidOperationException($"{result.Outcome} {result.ErrorKind}: {result.Detail}; missing: {string.Join(", ", expected)}; files: {string.Join(", ", files.Take(20))}");

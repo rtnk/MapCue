@@ -23,6 +23,7 @@ public static partial class TapCueErrorClassifier
         (LaunchFailed(), DeviceErrorKind.AppLaunchFailed, true),
         (AppCrashed(), DeviceErrorKind.AppCrashed, true),
         (DriverTimeout(), DeviceErrorKind.DriverTimeout, true),
+        (DriverLost(), DeviceErrorKind.DriverLost, true),
     ];
 
     public static DeviceErrorKind Classify(string? text) => ClassifyDetailed(text).Kind;
@@ -81,4 +82,9 @@ public static partial class TapCueErrorClassifier
 
     [GeneratedRegex(@"Maestro driver timed out|Maestro driver did not start|DriverTimeout", RegexOptions.CultureInvariant)]
     private static partial Regex DriverTimeout();
+
+    // AndroidDeviceConnectionModel.kt: "Device server died during '<op>' on <serial> (...)". Observed on the emulator
+    // after a CLI `tapcue test` ran while the MCP session was open (STEP-02 smoke, R-03).
+    [GeneratedRegex(@"Device server died during", RegexOptions.CultureInvariant)]
+    private static partial Regex DriverLost();
 }

@@ -19,7 +19,9 @@ namespace MapCue.Adapters.TapCue;
 /// <see cref="IDeviceAutomation"/> over TapCue's public MCP and CLI (ADR-0002, option C).
 /// <list type="bullet">
 /// <item>Fast observations, device listing and actions go through one long-lived <c>tapcue mcp</c> child process.</item>
-/// <item>Full observations, replay and syntax checks use the CLI (a new JVM per call).</item>
+/// <item>Full observations, replay and syntax checks use the CLI (a new JVM per call). <c>hierarchy</c> can run next to
+/// the MCP session (<see cref="FullObservationMode.Shared"/>); <c>test</c> breaks the session's driver connection, so the
+/// session is closed before every replay (R-03, measured in the STEP-02 smoke).</item>
 /// <item>All device calls are serialized (TapCue has no device lock, G-09) and bounded by hard timeouts; a timeout
 /// kills the process tree and the next call starts a fresh session (G-01).</item>
 /// <item>Actions are never retried here. A dispatched action whose result is lost is <see cref="ActionOutcome.OutcomeUnknown"/>.
@@ -288,6 +290,12 @@ public sealed class TapCueDeviceAutomation : IDeviceAutomation, IAsyncDisposable
             }
 
             var (kind, reached) = TapCueErrorClassifier.ClassifyDetailed(text);
+            if (kind == DeviceErrorKind.DriverLost)
+            {
+                // TapCue keeps the dead driver connection in its session cache; only a new process reconnects.
+                await CloseSessionAsync().ConfigureAwait(false);
+            }
+
             if (!reached)
             {
                 return Done(ActionOutcome.Failed, text, kind, false);
@@ -346,10 +354,9 @@ public sealed class TapCueDeviceAutomation : IDeviceAutomation, IAsyncDisposable
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (_options.TapCue.FullObservation == FullObservationMode.Exclusive)
-            {
-                await CloseSessionAsync().ConfigureAwait(false);
-            }
+            // R-03 (STEP-02 smoke): a CLI `test` takes over the device driver and the open MCP session loses it
+            // ("Device server died"), so the session is always closed first; the next MCP call starts a new one.
+            await CloseSessionAsync().ConfigureAwait(false);
 
             var result = await Cli().TestAsync(device, Path.GetFullPath(flow.Path), outputDir, options.Timeout, ct).ConfigureAwait(false);
             if (result.TimedOut)
@@ -431,12 +438,12 @@ public sealed class TapCueDeviceAutomation : IDeviceAutomation, IAsyncDisposable
 
                     return result.Text;
                 }
-                catch (TapCueException ex) when (ex.Kind is DeviceErrorKind.Timeout or DeviceErrorKind.TransportClosed && attempt < _options.Budgets.MaxRetries)
+                catch (TapCueException ex) when (ex.Kind is DeviceErrorKind.Timeout or DeviceErrorKind.TransportClosed or DeviceErrorKind.DriverLost && attempt < _options.Budgets.MaxRetries)
                 {
                     _logger.LogWarning("TapCue {Tool} failed ({Kind}); restarting the MCP session (retry {Attempt})", tool, ex.Kind, attempt + 1);
                     await CloseSessionAsync().ConfigureAwait(false);
                 }
-                catch (TapCueException ex) when (ex.Kind is DeviceErrorKind.Timeout or DeviceErrorKind.TransportClosed)
+                catch (TapCueException ex) when (ex.Kind is DeviceErrorKind.Timeout or DeviceErrorKind.TransportClosed or DeviceErrorKind.DriverLost)
                 {
                     await CloseSessionAsync().ConfigureAwait(false);
                     throw;

@@ -25,4 +25,8 @@ python3 -I "$ROOT/tests/MapCue.Adapters.TapCue.ContractTests/Fixtures/tapcue-0.1
 "$TAPCUE" --device "$DEVICE" hierarchy --no-reinstall-driver > "$OUT/hierarchy-raw.txt" 2> "$OUT/hierarchy-raw.stderr" || true
 
 cat "$OUT/smoke/report.md" 2>/dev/null || true
+# Artifact storage may be unreachable from the agent sandbox; the recordings are also printed between markers.
+for f in mcp-device-recording.jsonl hierarchy-raw.txt; do
+  echo "=== BEGIN $f"; cat "$OUT/$f" 2>/dev/null || true; echo "=== END $f"
+done
 exit "$status"
