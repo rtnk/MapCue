@@ -19,6 +19,8 @@ public sealed class ChildProcess : IDisposable
 {
     public const int StderrTailChars = 64 * 1024;
 
+    private const int TextFileBusy = 26; // ETXTBSY on Linux and macOS
+
     private readonly Process _process;
     private readonly StringBuilder _stderrTail = new();
     private readonly Lock _stderrLock = new();
@@ -80,18 +82,27 @@ public sealed class ChildProcess : IDisposable
             info.Environment[name] = value;
         }
 
-        var process = new Process { StartInfo = info };
-        try
+        // ETXTBSY: an executable that was just written (an installer, a test writing a launcher script) can still be
+        // open for writing in another process forked concurrently; exec fails until that process execs or exits.
+        for (var attempt = 1; ; attempt++)
         {
-            process.Start();
+            var process = new Process { StartInfo = info };
+            try
+            {
+                process.Start();
+                return new ChildProcess(process);
+            }
+            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == TextFileBusy && attempt < 5)
+            {
+                process.Dispose();
+                Thread.Sleep(50 * attempt);
+            }
+            catch
+            {
+                process.Dispose();
+                throw;
+            }
         }
-        catch
-        {
-            process.Dispose();
-            throw;
-        }
-
-        return new ChildProcess(process);
     }
 
     /// <summary>The last <see cref="StderrTailChars"/> characters written to standard error (not redacted).</summary>
