@@ -1,0 +1,8 @@
+appId: com.example.mapcue.demo
+name: mapcue-attempt-T-0001-A1
+---
+- tapOn:
+    id: "AccountsTab"
+    retryTapIfNoChange: false
+- waitForAnimationToEnd:
+    timeout: 3000
