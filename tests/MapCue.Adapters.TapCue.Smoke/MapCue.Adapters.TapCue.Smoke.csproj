@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Device smoke runner for the TapCue adapter (STEP-02). Not a test project: it needs TapCue and a booted device. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MapCue.Adapters.TapCue\MapCue.Adapters.TapCue.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Application\MapCue.Application.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Domain\MapCue.Domain.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
+  </ItemGroup>
+</Project>

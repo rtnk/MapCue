@@ -13,4 +13,7 @@ public static class ExitCodes
 
     /// <summary>The command exists but is not implemented yet.</summary>
     public const int NotImplemented = 3;
+
+    /// <summary><c>mapcue doctor</c> found at least one failing prerequisite.</summary>
+    public const int PrerequisitesFailed = 4;
 }

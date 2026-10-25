@@ -15,13 +15,15 @@ public sealed class CliHost : IDisposable
     public const string LogLevelVariable = "MAPCUE_LOG_LEVEL";
 
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IReadOnlyDictionary<string, string>? _environment;
 
-    public CliHost(TextWriter logWriter, IClock? clock = null, LogLevel? minimumLevel = null)
+    public CliHost(TextWriter logWriter, IClock? clock = null, LogLevel? minimumLevel = null, IReadOnlyDictionary<string, string>? environment = null)
     {
         ArgumentNullException.ThrowIfNull(logWriter);
+        _environment = environment;
         Clock = clock ?? new SystemClock();
         Redactor = new PatternRedactor();
-        var level = minimumLevel ?? ParseLevel(Environment.GetEnvironmentVariable(LogLevelVariable));
+        var level = minimumLevel ?? ParseLevel(Environment(LogLevelVariable));
         _loggerFactory = LoggerFactory.Create(builder => builder
             .SetMinimumLevel(level)
             .AddProvider(new JsonLinesLoggerProvider(logWriter, Redactor, Clock, level)));
@@ -32,6 +34,14 @@ public sealed class CliHost : IDisposable
     public IRedactor Redactor { get; }
 
     public ILogger CreateLogger(string category) => _loggerFactory.CreateLogger(category);
+
+    /// <summary>Reads a variable of the process environment (or of the environment injected by tests).</summary>
+    public string? Environment(string name) =>
+        _environment is null ? System.Environment.GetEnvironmentVariable(name) : _environment.GetValueOrDefault(name);
+
+    /// <summary>Names of all variables of the process environment (or of the injected one).</summary>
+    public IEnumerable<string> EnvironmentNames() =>
+        _environment?.Keys ?? System.Environment.GetEnvironmentVariables().Keys.Cast<string>();
 
     public void Dispose() => _loggerFactory.Dispose();
 

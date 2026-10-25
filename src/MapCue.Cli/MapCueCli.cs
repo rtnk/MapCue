@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MapCue.Cli;
 
-/// <summary>Command tree of <c>mapcue</c>. In STEP-01 every command except help/version is a placeholder.</summary>
+/// <summary>Command tree of <c>mapcue</c>. Commands of later steps are placeholders that exit with <see cref="ExitCodes.NotImplemented"/>.</summary>
 public static class MapCueCli
 {
     public const string CommandName = "mapcue";
@@ -78,7 +78,7 @@ public static class MapCueCli
         diff.SetAction(parse => NotImplemented(parse, logger, "diff", "STEP-10"));
         root.Subcommands.Add(diff);
 
-        root.Subcommands.Add(Placeholder("doctor", "Check TapCue, devices and environment prerequisites.", "STEP-02", logger));
+        root.Subcommands.Add(DoctorCommand.Build(host, logger));
         return root;
     }
 

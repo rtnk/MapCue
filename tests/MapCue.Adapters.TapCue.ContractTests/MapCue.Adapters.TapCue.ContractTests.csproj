@@ -3,6 +3,10 @@
     <ProjectReference Include="..\..\src\MapCue.Adapters.TapCue\MapCue.Adapters.TapCue.csproj" />
     <ProjectReference Include="..\..\src\MapCue.Application\MapCue.Application.csproj" />
     <ProjectReference Include="..\..\src\MapCue.Domain\MapCue.Domain.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
     <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

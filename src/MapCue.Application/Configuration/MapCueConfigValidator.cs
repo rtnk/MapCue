@@ -36,10 +36,11 @@ public static partial class MapCueConfigValidator
         var budgets = ValidateBudgets(document.Budgets, errors);
         var agent = ValidateAgent(document.Agent, errors);
         var profiles = ValidateProfiles(document.Profiles, allowlist, errors);
+        var tapCue = ValidateTapCue(document.Tapcue, errors);
 
         return errors.Count > 0
             ? new(null, errors)
-            : new(new MapCueSettings(workspace, allowlist, budgets, agent, profiles), errors);
+            : new(new MapCueSettings(workspace, allowlist, budgets, agent, profiles, tapCue), errors);
     }
 
     private static AllowlistSettings ValidateAllowlist(AllowlistDocument? doc, List<ConfigError> errors)
@@ -153,6 +154,85 @@ public static partial class MapCueConfigValidator
             Int(doc.MaxCalls, d.MaxCalls, 0, 10_000, "agent.maxCalls", errors),
             Long(doc.MaxTokens, d.MaxTokens, 0, 100_000_000, "agent.maxTokens", errors),
             Decimal(doc.MaxCostUsd, d.MaxCostUsd, 0m, 1_000m, "agent.maxCostUsd", errors));
+    }
+
+    /// <summary>Validates the <c>tapcue</c> section; omitted keys use <see cref="TapCueSettings.Default"/>.</summary>
+    public static TapCueSettings ValidateTapCue(TapcueDocument? doc, List<ConfigError> errors)
+    {
+        ArgumentNullException.ThrowIfNull(errors);
+        var d = TapCueSettings.Default;
+        if (doc is null)
+        {
+            return d;
+        }
+
+        var executable = doc.Executable?.Trim();
+        if (executable is not null && (executable.Length is 0 or > 1024 || executable.Any(char.IsControl)))
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidTapCueSetting, "tapcue.executable", "Must be a command name on PATH or a file path (1-1024 characters, no control characters)."));
+            executable = null;
+        }
+
+        var versions = new List<string>();
+        foreach (var (version, i) in (doc.SupportedVersions ?? [.. d.SupportedVersions]).Select((v, i) => (v?.Trim(), i)))
+        {
+            if (string.IsNullOrEmpty(version) || !VersionPattern().IsMatch(version))
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidTapCueSetting, $"tapcue.supportedVersions[{i}]", "Must be a version like 0.1.0."));
+            }
+            else if (!versions.Contains(version, StringComparer.Ordinal))
+            {
+                versions.Add(version);
+            }
+        }
+
+        if (versions.Count == 0 && doc.SupportedVersions is not null)
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidTapCueSetting, "tapcue.supportedVersions", "At least one supported TapCue version is required."));
+        }
+
+        var pass = new List<string>();
+        foreach (var (name, i) in (doc.PassEnvironment ?? []).Select((v, i) => (v?.Trim(), i)))
+        {
+            if (string.IsNullOrEmpty(name) || !EnvironmentNamePattern().IsMatch(name))
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidTapCueSetting, $"tapcue.passEnvironment[{i}]", "Must be an environment variable name."));
+            }
+            else if (name.StartsWith("MAESTRO_", StringComparison.OrdinalIgnoreCase))
+            {
+                // G-06: TapCue echoes every MAESTRO_* variable in `run` results.
+                errors.Add(new(ConfigErrorCodes.ForbiddenPassEnvironment, $"tapcue.passEnvironment[{i}]", "MAESTRO_* variables are never passed to TapCue (they are echoed in results, G-06)."));
+            }
+            else if (!pass.Contains(name, StringComparer.Ordinal))
+            {
+                pass.Add(name);
+            }
+        }
+
+        var mode = d.FullObservation;
+        switch (doc.FullObservation)
+        {
+            case null:
+                break;
+            case "shared":
+                mode = FullObservationMode.Shared;
+                break;
+            case "exclusive":
+                mode = FullObservationMode.Exclusive;
+                break;
+            default:
+                errors.Add(new(ConfigErrorCodes.InvalidTapCueSetting, "tapcue.fullObservation", "Must be 'shared' (default) or 'exclusive'."));
+                break;
+        }
+
+        return new TapCueSettings(
+            executable ?? d.Executable,
+            versions.Count > 0 ? versions : d.SupportedVersions,
+            doc.AllowUntestedVersion ?? d.AllowUntestedVersion,
+            pass,
+            Duration(doc.StartupTimeout, d.StartupTimeout, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(15), "tapcue.startupTimeout", errors),
+            mode,
+            doc.CheckGeneratedSyntax ?? d.CheckGeneratedSyntax);
     }
 
     private static List<ProfileSettings> ValidateProfiles(List<ProfileDocument>? docs, AllowlistSettings allowlist, List<ConfigError> errors)
@@ -359,4 +439,10 @@ public static partial class MapCueConfigValidator
 
     [GeneratedRegex("^[a-z][a-z0-9-]{0,31}$", RegexOptions.CultureInvariant)]
     private static partial Regex GeneratorPattern();
+
+    [GeneratedRegex("^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}([-+][A-Za-z0-9.-]{1,64})?$", RegexOptions.CultureInvariant)]
+    private static partial Regex VersionPattern();
+
+    [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$", RegexOptions.CultureInvariant)]
+    private static partial Regex EnvironmentNamePattern();
 }

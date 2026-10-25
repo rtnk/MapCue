@@ -16,9 +16,9 @@ public class FakePortsTests
             new FakeScreen("settings", []),
         ]);
 
-    private static ValidatedDeviceAction Tap(string id) => new($"act-{id}", ActionType.Tap, RiskClass.Navigational, id, null, null);
+    private static ValidatedDeviceAction Tap(string id) => new($"act-{id}", "com.example.demo", ActionType.Tap, RiskClass.Navigational, id, null, null);
 
-    private static ValidatedDeviceAction Back() => new("act-back", ActionType.Back, RiskClass.Navigational, null, null, null);
+    private static ValidatedDeviceAction Back() => new("act-back", "com.example.demo", ActionType.Back, RiskClass.Navigational, null, null, null);
 
     [Fact]
     public async Task Observe_reason_act_loop_runs_without_device_tapcue_or_llm()
@@ -68,7 +68,7 @@ public class FakePortsTests
         var id = device.Device.Id;
 
         Assert.Equal(ActionOutcome.Failed, (await device.ExecuteAsync(id, Tap("Nope"), CancellationToken.None)).Outcome);
-        var longPress = new ValidatedDeviceAction("act-lp", ActionType.LongPress, RiskClass.Safe, "AccountsTab", null, null);
+        var longPress = new ValidatedDeviceAction("act-lp", "com.example.demo", ActionType.LongPress, RiskClass.Safe, "AccountsTab", null, null);
         Assert.Equal(ActionOutcome.Rejected, (await device.ExecuteAsync(id, longPress, CancellationToken.None)).Outcome);
         Assert.Equal("home", device.CurrentScreenId);
     }

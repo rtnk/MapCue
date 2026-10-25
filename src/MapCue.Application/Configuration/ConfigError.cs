@@ -26,6 +26,8 @@ public static class ConfigErrorCodes
     public const string ProfileOutsideAllowlist = "CFG041";
     public const string LiteralInputValue = "CFG050";
     public const string InvalidSecretRef = "CFG051";
+    public const string InvalidTapCueSetting = "CFG060";
+    public const string ForbiddenPassEnvironment = "CFG061";
 }
 
 public sealed record ConfigValidationResult(MapCueSettings? Settings, IReadOnlyList<ConfigError> Errors)
