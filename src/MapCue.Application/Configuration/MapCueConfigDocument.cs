@@ -17,6 +17,9 @@ public sealed class MapCueConfigDocument
     public AgentDocument? Agent { get; set; }
 
     public List<ProfileDocument>? Profiles { get; set; }
+
+    /// <summary>Bound from the <c>tapcue</c> key (STEP-02).</summary>
+    public TapcueDocument? Tapcue { get; set; }
 }
 
 public sealed class AllowlistDocument
@@ -83,6 +86,23 @@ public sealed class ProfileDocument
     public Dictionary<string, string>? Inputs { get; set; }
 
     public List<string>? Capabilities { get; set; }
+}
+
+public sealed class TapcueDocument
+{
+    public string? Executable { get; set; }
+
+    public List<string>? SupportedVersions { get; set; }
+
+    public bool? AllowUntestedVersion { get; set; }
+
+    public List<string>? PassEnvironment { get; set; }
+
+    public string? StartupTimeout { get; set; }
+
+    public string? FullObservation { get; set; }
+
+    public bool? CheckGeneratedSyntax { get; set; }
 }
 
 #pragma warning restore CA1002, CA2227

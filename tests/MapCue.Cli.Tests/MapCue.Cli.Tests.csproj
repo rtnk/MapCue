@@ -5,8 +5,10 @@
     <ProjectReference Include="..\..\src\MapCue.Domain\MapCue.Domain.csproj" />
     <ProjectReference Include="..\..\src\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
     <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
+    <ProjectReference Include="..\MapCue.Adapters.TapCue.FakeServer\MapCue.Adapters.TapCue.FakeServer.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Snapshots\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\MapCue.Adapters.TapCue.ContractTests\Fixtures\**\*" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -5,13 +5,16 @@ namespace MapCue.Cli.Tests;
 
 internal static class CliTestHarness
 {
-    public static async Task<(int ExitCode, string Output, string Error, string Log)> RunAsync(params string[] args)
+    public static Task<(int ExitCode, string Output, string Error, string Log)> RunAsync(params string[] args) =>
+        RunWithEnvironmentAsync(null, args);
+
+    public static async Task<(int ExitCode, string Output, string Error, string Log)> RunWithEnvironmentAsync(IReadOnlyDictionary<string, string>? environment, params string[] args)
     {
         using var output = new StringWriter();
         using var error = new StringWriter();
         using var log = new StringWriter();
         int exitCode;
-        using (var host = new CliHost(log, new ManualClock(), LogLevel.Trace))
+        using (var host = new CliHost(log, new ManualClock(), LogLevel.Trace, environment))
         {
             exitCode = await MapCueCli.RunAsync(args, output, error, host);
         }

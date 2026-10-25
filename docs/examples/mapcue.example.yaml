@@ -45,3 +45,13 @@ profiles:
       password: secret://env/MAPCUE_DEMO_PASSWORD
       email: generated:email
     capabilities: []
+
+# TapCue integration (optional; the values below are the defaults). docs/tapcue-compatibility.md §8.
+tapcue:
+  executable: tapcue          # a name looked up on PATH or an explicit path; no built-in install locations
+  supportedVersions: ["0.1.0"]
+  allowUntestedVersion: false # true runs other versions, flagged untestedAdapter
+  passEnvironment: []         # extra variable names for the TapCue process; MAESTRO_* are always refused (G-06)
+  startupTimeout: 120s        # JVM start + MCP handshake; added once to the first device call of a session (driver install)
+  fullObservation: shared     # shared | exclusive: close the MCP session while CLI hierarchy/test runs (R-03)
+  checkGeneratedSyntax: true  # tapcue check-syntax once per generated flow shape

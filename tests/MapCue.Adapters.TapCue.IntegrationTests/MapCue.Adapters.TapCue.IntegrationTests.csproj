@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MapCue.Adapters.TapCue\MapCue.Adapters.TapCue.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Application\MapCue.Application.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Domain\MapCue.Domain.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
+    <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
+    <!-- The fake `tapcue` executable; its build output is copied next to the tests. -->
+    <ProjectReference Include="..\MapCue.Adapters.TapCue.FakeServer\MapCue.Adapters.TapCue.FakeServer.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\MapCue.Adapters.TapCue.ContractTests\Fixtures\**\*" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

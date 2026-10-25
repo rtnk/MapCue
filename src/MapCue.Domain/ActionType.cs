@@ -14,6 +14,21 @@ public enum ActionType
     Point,
     OpenLink,
     SetPermissions,
+
+    /// <summary>Launches an allowlisted app (lifecycle step of the engine and of reachability recipes; never chosen by the reasoner).</summary>
+    LaunchApp,
+}
+
+/// <summary>
+/// Direction of a <see cref="ActionType.Scroll"/> (where new content is revealed: <see cref="Down"/> reveals content below)
+/// or of a <see cref="ActionType.Swipe"/> (the direction the finger moves).
+/// </summary>
+public enum ScrollDirection
+{
+    Down,
+    Up,
+    Left,
+    Right,
 }
 
 public static class ActionTypes

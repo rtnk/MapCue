@@ -1,0 +1,107 @@
+Info: driver already installed
+{
+  "attributes": {},
+  "children": [
+    {
+      "attributes": {
+        "text": "",
+        "resource-id": "",
+        "accessibilityText": "",
+        "class": "android.widget.FrameLayout",
+        "bounds": "[0,0][1080,2400]",
+        "enabled": "true",
+        "focused": "false",
+        "checked": "false",
+        "scrollable": "false",
+        "selected": "false",
+        "clickable": "false",
+        "important-for-accessibility": "true"
+      },
+      "children": [
+        {
+          "attributes": {
+            "text": "Settings",
+            "resource-id": "",
+            "accessibilityText": "",
+            "class": "android.widget.TextView",
+            "bounds": "[0,136][1080,400]",
+            "enabled": "true",
+            "scrollable": "false",
+            "important-for-accessibility": "true"
+          },
+          "children": [],
+          "clickable": false,
+          "enabled": true,
+          "focused": false,
+          "checked": false,
+          "selected": false
+        },
+        {
+          "attributes": {
+            "text": "",
+            "resource-id": "com.android.settings:id/recycler_view",
+            "accessibilityText": "",
+            "class": "androidx.recyclerview.widget.RecyclerView",
+            "bounds": "[0,400][1080,2400]",
+            "enabled": "true",
+            "scrollable": "true",
+            "important-for-accessibility": "true"
+          },
+          "children": [
+            {
+              "attributes": {
+                "text": "",
+                "resource-id": "",
+                "accessibilityText": "",
+                "class": "android.widget.LinearLayout",
+                "bounds": "[0,400][1080,600]",
+                "clickable": "true",
+                "scrollable": "false",
+                "important-for-accessibility": "true"
+              },
+              "children": [
+                {
+                  "attributes": {
+                    "text": "Network & internet",
+                    "resource-id": "android:id/title",
+                    "accessibilityText": "",
+                    "class": "android.widget.TextView",
+                    "bounds": "[189,440][600,500]",
+                    "scrollable": "false",
+                    "important-for-accessibility": "true"
+                  },
+                  "children": [],
+                  "clickable": false,
+                  "enabled": true,
+                  "focused": false,
+                  "checked": false,
+                  "selected": false
+                }
+              ],
+              "clickable": true,
+              "enabled": true,
+              "focused": false,
+              "checked": false,
+              "selected": false
+            }
+          ],
+          "clickable": false,
+          "enabled": true,
+          "focused": true,
+          "checked": false,
+          "selected": false
+        }
+      ],
+      "clickable": false,
+      "enabled": true,
+      "focused": false,
+      "checked": false,
+      "selected": false
+    }
+  ],
+  "clickable": false,
+  "enabled": true,
+  "focused": false,
+  "checked": false,
+  "selected": false
+}

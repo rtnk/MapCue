@@ -35,7 +35,6 @@ public class CommandTests
     [InlineData("STEP-10", "report")]
     [InlineData("STEP-10", "export")]
     [InlineData("STEP-10", "diff", "--from", "run_a", "--to", "run_b")]
-    [InlineData("STEP-02", "doctor")]
     public async Task Placeholder_commands_report_not_implemented(string step, params string[] args)
     {
         var (exitCode, output, error, log) = await CliTestHarness.RunAsync(args);

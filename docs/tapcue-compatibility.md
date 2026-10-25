@@ -1,6 +1,6 @@
 # TapCue — kompatybilność i publiczny interfejs dla MapCue
 
-Status dokumentu: STEP-00, audyt kodu i smoke test bez urządzenia. Wszystko, co nie jest oznaczone jako **confirmed (smoke)**, sprawdza się w STEP-02.
+Status dokumentu: STEP-00 (audyt kodu, smoke bez urządzenia), uzupełniony w STEP-02 wynikami smoke na emulatorze Androida (§7, §9). Pozycje bez **confirmed (smoke)** nadal wymagają potwierdzenia.
 
 ## 1. Sprawdzana wersja
 
@@ -57,7 +57,7 @@ Zachowanie potwierdzone kodem:
 | `tapcue list-devices [--platform]` | diagnostyka | confirmed (smoke) | wyjście tekstowe (tabela), **nie JSON**. Do automatyzacji służy MCP `list_devices`. |
 | `tapcue check-syntax <flow>` | walidacja każdego generowanego i eksportowanego YAML | confirmed (smoke) | exit 0 `OK` / exit 1 + komunikat z pozycją |
 | `tapcue [--device <id>] hierarchy [--no-reinstall-driver] [--compact]` | pełna hierarchia (`TreeNode` JSON) dla ScreenContract i accessibility | confirmed (code) | Domyślnie `--reinstall-driver=true` (`cli/command/PrintHierarchyCommand.kt:71`): **zawsze podawać `--no-reinstall-driver`**. Każde wywołanie to nowy JVM i nowa sesja drivera. Bez urządzenia **zawiesza się** (smoke: brak wyniku po 60 s). |
-| `tapcue [--device <id>] test [--no-reinstall-driver] --format junit --output <f> --test-output-dir <dir> [-e K=V] <flow>` | replay `ReachabilityRecipe`, walidacja eksportowanych flow | confirmed (code); smoke: bez urządzenia exit 1 z komunikatem o braku urządzeń | `--test-output-dir` zapisuje `manifest.json`, `commands.json`, `logs/`, `takeScreenshot/` (`cli/command/TestCommand.kt:139`). Format `commands.json`: inferred, do potwierdzenia w STEP-02. |
+| `tapcue [--device <id>] test [--no-reinstall-driver] --format junit --output <f> --test-output-dir <dir> [-e K=V] <flow>` | replay `ReachabilityRecipe`, walidacja eksportowanych flow | confirmed (smoke, emulator API 34) | Artefakty lądują w **podkatalogu** `<dir>/<timestamp>/<nazwa flow>/`: `manifest.json`, `commands.json`, `logs/maestro.log`, `logs/device-logcat.txt`, `takeScreenshot/*.png`; `--output` daje `report.xml`. Format `commands.json`: nadal nie analizowany (STEP-10). **Zrywa połączenie z driverem otwartej sesji MCP** (R-03, §9). |
 | `tapcue driver-setup --simulator` | preflight iOS (zbudowanie drivera XCTest przed eksploracją) | confirmed (code) | buduje runner ze źródeł w JAR przy użyciu lokalnego Xcode |
 | `tapcue start-device`, `record`, `query`, `chat`, `bugreport` | nieużywane | — | `chat` jest ukryty i zależny od API. MapCue go nie używa. |
 
@@ -96,7 +96,7 @@ Komendy, które polityka MapCue **zabrania** w generowanym YAML: `runScript`, `e
 - `important-for-accessibility`, `error`, `title` (iOS) i grupowanie kontenerów;
 - informację potrzebną do kolejności fokusu i grupowania elementów dla czytników ekranu.
 
-Wniosek dla MapCue (ADR-0002): do **eksploracji** (szybka obserwacja, identyfikacja stanu) służy `inspect_screen`. Do **ScreenContract i accessibility** służy pełne `tapcue hierarchy --no-reinstall-driver` w osobnym, rzadszym zadaniu `AnalyzeScreen`/`AuditAccessibility`. Przełączanie MCP i CLI na tym samym urządzeniu może kolidować z portem drivera. To ryzyko R-03, sprawdzane w STEP-02.
+Wniosek dla MapCue (ADR-0002): do **eksploracji** (szybka obserwacja, identyfikacja stanu) służy `inspect_screen`. Do **ScreenContract i accessibility** służy pełne `tapcue hierarchy --no-reinstall-driver` w osobnym, rzadszym zadaniu `AnalyzeScreen`/`AuditAccessibility`. Przełączanie MCP i CLI na tym samym urządzeniu: wynik PoC R-03 w §9.
 
 ## 4. Akcje i stabilizacja
 
@@ -144,8 +144,8 @@ Odtwarzalne skrypty: `docs/spikes/tapcue-smoke/`.
 | S-01 | wersja, `list-devices`, `check-syntax` (poprawny i błędny flow) | Linux x86_64, archiwum v0.1.0 | PASS |
 | S-02 | MCP `initialize`, `tools/list`, `list_devices`, ścieżki błędów `inspect_screen` i `run` | j.w. | PASS |
 | S-03 | `hierarchy` bez urządzenia kończy się szybkim błędem | j.w. | FAIL (zawieszenie, luka G-10) |
-| S-04 | Android: `inspect_screen`, `take_screenshot`, `run launchApp`, `run back`, `inspect_screen` po akcji, `hierarchy`, `test --test-output-dir` | emulator Android | NOT RUN (brak emulatora i KVM). Wykonać w STEP-02. |
-| S-05 | iOS: to samo na symulatorze z `com.apple.Preferences` | macOS arm64 + Xcode | NOT RUN (brak macOS). Najtańsza ścieżka: GitHub Actions `macos-26` w STEP-02 (ROADMAP R-01). |
+| S-04 | Android: `list_devices`, `run launchApp`, `inspect_screen`, `run back`, `inspect_screen` po akcji, `hierarchy`, `test --test-output-dir` (przez adapter MapCue) | emulator Android API 34 (google_apis, x86_64), GitHub Actions ubuntu-24.04 z KVM | **PASS** (STEP-02, run 40238138686). `take_screenshot`: NOT RUN (adapter go nie używa). |
+| S-05 | iOS: to samo na symulatorze z `com.apple.Preferences` | macOS arm64 + Xcode | NOT RUN (STEP-02: job `ios` w `tapcue-smoke.yml`, tylko `workflow_dispatch`; czeka na merge i decyzję o minutach macOS, R-01). |
 | S-06 | Build ze źródeł | Linux | BLOCKED (`dl.google.com` 403 w polityce sieci sesji) |
 
 ## 8. Polityka wersji
@@ -153,3 +153,35 @@ Odtwarzalne skrypty: `docs/spikes/tapcue-smoke/`.
 - MapCue przypina wspieraną wersję: `tapcue.supportedVersions: ["0.1.0"]`. Preflight czyta `tapcue --version` i odmawia pracy z inną wersją, chyba że ustawiono jawne `tapcue.allowUntestedVersion: true` (wtedy run dostaje flagę `untestedAdapter`).
 - Ścieżka do `tapcue` pochodzi z konfiguracji albo z `PATH`. Brak ścieżek na sztywno.
 - Testy kontraktowe STEP-02 używają nagranych odpowiedzi MCP (fixtures JSONL) dla danej wersji. Nowa wersja TapCue wymaga nowych fixtures i przejścia smoke.
+
+## 9. Wyniki STEP-02 (adapter MapCue na emulatorze Androida)
+
+Środowisko: GitHub Actions `ubuntu-24.04` z KVM, emulator API 34 `google_apis` x86_64, TapCue 0.1.0 z archiwum (SHA-256 przypięte), Zulu JDK 17, aplikacja `com.android.settings`. Workflow `.github/workflows/tapcue-smoke.yml`, job `android`: run 40238138686 (commit `a571e15`, pomiar i wykrycie kolizji) oraz run 40239216271 (commit `defec15`, po poprawce R-03; z niego pochodzą nagrane fixtures). Raport: artefakt `android-smoke-reports` (`smoke/report.md`) i podsumowanie jobu. Czasy z dwóch runów podane jako zakres.
+
+### 9.1 Czasy (PoC ADR-0002)
+
+| Operacja | Czas | Uwagi |
+|---|---|---|
+| `tapcue --version` | 1,1 s | start JVM |
+| `tapcue check-syntax` | 1,2–2,3 s | osobny JVM na każde wywołanie; adapter sprawdza każdy kształt szablonu raz (cache po `ShapeKey`) |
+| start `tapcue mcp` + `initialize` + `tools/list` + `list_devices` | 3,8–4,9 s | |
+| `run` `launchApp` (pierwsze wywołanie na urządzeniu w sesji) | 13,1–20,1 s | zawiera instalację drivera (`reinstallDriver = true`) |
+| `inspect_screen` (zimny / ciepły) | 1,0–1,4 s / 0,15–0,8 s | |
+| `run` `back` + `waitForAnimationToEnd` | 3,1–4,9 s | |
+| CLI `hierarchy --no-reinstall-driver` | 4,7–8,1 s | nowy JVM i sesja drivera |
+| CLI `test --test-output-dir` (launchApp + screenshot) | 10,7–18,2 s | |
+| restart sesji MCP po zamknięciu + `inspect_screen` | 3,7–7,0 s | tryb `exclusive` |
+| `mapcue doctor --device` (całość) | 13,4 s | |
+
+### 9.2 Kolizja MCP i CLI na jednym urządzeniu (R-03)
+
+- `hierarchy --no-reinstall-driver` przy otwartej sesji MCP: **brak kolizji**. Kolejne `inspect_screen` w tej samej sesji działa (bez restartu). Domyślne `tapcue.fullObservation: shared` zostaje.
+- `test --no-reinstall-driver` przy otwartej sesji MCP: **kolizja**. Następne `inspect_screen` zwraca `isError`: `Failed to inspect screen: Device server died during 'deviceInfo' on emulator-5554 (...): StatusRuntimeException: UNAVAILABLE`, a TapCue trzyma martwe połączenie w pamięci sesji. Mitigacja w adapterze: `RunFlowAsync` zawsze zamyka sesję MCP przed `tapcue test`; błąd `Device server died` jest klasyfikowany jako `DriverLost` i powoduje restart sesji (wywołania tylko do odczytu są ponawiane w limicie `maxRetries`, akcje nie).
+- Po poprawce (run 40239216271) `inspect_screen` po `test` przechodzi: adapter otwiera nową sesję MCP (licznik restartów 1, 7,0 s razem z instalacją drivera).
+- Tryb `exclusive` (zamykanie sesji na czas CLI) działa; kosztuje restart sesji (3,7–7,0 s).
+
+### 9.3 Inne obserwacje
+
+- Wynik `run` przy sukcesie: `{"success":true,"device_id":…,"commands_executed":3,"message":"Flow executed successfully"}` (3 komendy: wygenerowany flow ma `launchApp`/`back` i `waitForAnimationToEnd`, Maestro liczy też komendę konfiguracji). Bez `env` nie ma `env_vars` (proces bez `MAESTRO_*`).
+- `inspect_screen` na Androidzie zawiera elementy System UI (pasek stanu) przed treścią aplikacji. Normalizacja i odfiltrowanie należą do STEP-03.
+- `ForegroundAppId` nie jest raportowany przez TapCue 0.1.0 (ani MCP, ani `hierarchy`).
