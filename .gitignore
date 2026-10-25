@@ -1,0 +1,25 @@
+# MapCue workspace (runtime state, artifacts, SQLite)
+.mapcue/
+
+# Build output
+bin/
+obj/
+artifacts/
+*.nupkg
+TestResults/
+*.trx
+coverage*.xml
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+.DS_Store
+
+# Local secrets / env files must never be committed
+.env
+.env.*
+*.local.yaml

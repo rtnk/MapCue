@@ -1,0 +1,88 @@
+namespace MapCue.Application.Configuration;
+
+// Raw, mutable shape of mapcue.yaml as bound by the YAML loader. Nothing here is trusted until
+// MapCueConfigValidator turns it into MapCueSettings. Unknown keys are rejected by the loader.
+#pragma warning disable CA1002, CA2227 // Plain binding DTOs; validated into immutable settings.
+
+public sealed class MapCueConfigDocument
+{
+    public string? SchemaVersion { get; set; }
+
+    public string? Workspace { get; set; }
+
+    public AllowlistDocument? Allowlist { get; set; }
+
+    public BudgetsDocument? Budgets { get; set; }
+
+    public AgentDocument? Agent { get; set; }
+
+    public List<ProfileDocument>? Profiles { get; set; }
+}
+
+public sealed class AllowlistDocument
+{
+    public List<string>? AppIds { get; set; }
+
+    public List<string>? Environments { get; set; }
+
+    public List<string>? DeviceIds { get; set; }
+
+    public List<string>? ProfileIds { get; set; }
+}
+
+public sealed class BudgetsDocument
+{
+    public int? MaxDepth { get; set; }
+
+    public int? MaxScreens { get; set; }
+
+    public int? MaxStates { get; set; }
+
+    public int? MaxActions { get; set; }
+
+    public string? MaxDuration { get; set; }
+
+    public int? MaxRetries { get; set; }
+
+    public int? MaxListRowsPerTemplate { get; set; }
+
+    public string? UiSettleTimeout { get; set; }
+
+    public string? ActionTimeout { get; set; }
+
+    public string? ObserveTimeout { get; set; }
+}
+
+public sealed class AgentDocument
+{
+    public string? Runtime { get; set; }
+
+    public bool? AllowLocalExecution { get; set; }
+
+    public bool? SendScreenshots { get; set; }
+
+    public int? MaxCalls { get; set; }
+
+    public long? MaxTokens { get; set; }
+
+    public decimal? MaxCostUsd { get; set; }
+}
+
+public sealed class ProfileDocument
+{
+    public string? ProfileId { get; set; }
+
+    public string? Platform { get; set; }
+
+    public string? AppId { get; set; }
+
+    public string? Environment { get; set; }
+
+    public string? DataIsolation { get; set; }
+
+    public Dictionary<string, string>? Inputs { get; set; }
+
+    public List<string>? Capabilities { get; set; }
+}
+
+#pragma warning restore CA1002, CA2227

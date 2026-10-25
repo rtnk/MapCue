@@ -1,0 +1,20 @@
+Description:
+  MapCue: deterministic exploration of mobile apps through TapCue.
+
+Usage:
+  mapcue [command] [options]
+
+Options:
+  -?, -h, --help  Show help and usage information
+  --version       Show version information
+
+Commands:
+  explore          Run a budgeted exploration of an allowlisted app (validates the configuration first).
+  status           Show the state of the current or last run.
+  blocked          List tasks blocked and waiting for the operator.
+  resume <taskId>  Resume a blocked task after operator action.
+  report           Generate coverage reports and the graph view.
+  export           Export verified paths as TapCue flows.
+  diff             Compare screen maps of two runs or builds.
+  doctor           Check TapCue, devices and environment prerequisites.
+

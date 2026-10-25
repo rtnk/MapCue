@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MapCue.Domain\MapCue.Domain.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Contracts\MapCue.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Application\MapCue.Application.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Sqlite\MapCue.Infrastructure.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Adapters.TapCue\MapCue.Adapters.TapCue.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Adapters.Reasoning\MapCue.Adapters.Reasoning.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Reporting\MapCue.Reporting.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Cli\MapCue.Cli.csproj" />
+    <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>mapcue</AssemblyName>
+    <RootNamespace>MapCue.Cli</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MapCue.Domain\MapCue.Domain.csproj" />
+    <ProjectReference Include="..\MapCue.Contracts\MapCue.Contracts.csproj" />
+    <ProjectReference Include="..\MapCue.Application\MapCue.Application.csproj" />
+    <ProjectReference Include="..\MapCue.Infrastructure.Sqlite\MapCue.Infrastructure.Sqlite.csproj" />
+    <ProjectReference Include="..\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
+    <ProjectReference Include="..\MapCue.Adapters.TapCue\MapCue.Adapters.TapCue.csproj" />
+    <ProjectReference Include="..\MapCue.Adapters.Reasoning\MapCue.Adapters.Reasoning.csproj" />
+    <ProjectReference Include="..\MapCue.Reporting\MapCue.Reporting.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+</Project>
