@@ -2,10 +2,10 @@
 
 ## Status i identyfikatory
 
-- Status: __STATUS__
+- Status: **DONE** (zakres ROADMAP STEP-05 zrealizowany; demo na emulatorze PASS w CI; lokalnie bez urządzenia, R-09). Merge wykonuje Robert.
 - Branch: `feat/step-05-vertical-slice` (nazwa z promptu etapu; środowisko sesji nie wyznaczyło innego brancha)
-- PR URL i status (open / merged / not created): __PR__
-- Commit SHA: __SHA__
+- PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/8> (open, czeka na review i merge)
+- Commit SHA: kod i dokumentacja do `9c515e3`; ten handoff jest w kolejnym commicie na tym samym branchu, więc aktualny head jest w PR. Demo na emulatorze wykonano na commicie `9bd464c` (silnik przed poprawkami z przeglądu `25414f3`); CI PR uruchamia je ponownie na head.
 - Base branch/SHA: `main` @ `b99b1956453d9180c60fa45f0be5775913abb25a` (merge PR #7; CI run 40358579524 success, Demo app run 40358579569 success)
 - Data i środowisko: 2026-10-26. Lokalnie: kontener Linux x86_64 (Ubuntu 24.04), .NET SDK 10.0.113 (pakiet `dotnet-sdk-10.0`, doinstalowany w sesji), bez urządzenia, Android SDK i TapCue (R-09). Emulator: GitHub Actions `ubuntu-24.04` z KVM, Android API 34 `google_apis` x86_64, TapCue 0.1.0 (archiwum z przypiętym SHA-256), Zulu JDK 17, APK demo z artefaktu `demo-apk` tego samego runu.
 
@@ -89,11 +89,15 @@
 | Kalibracja na nagraniach demo (R-04) | `DemoAppRecordingCalibrationTests` (5), `ScreenIdentityResolverTests` (hinty), przepięte hashe v2 (`RecordedSnapshotFingerprintTests`) | PASS | — |
 | `compare-expected.py` na workspace z `FakeDevice` (konfiguracja demo przez CLI) | skrypt w scratchpadzie / lokalnie | PASS: 7 stanów, 26 krawędzi, 25/25 oczekiwanych przejść, kontrole twarde PASS | — |
 | `check-consistency.py` | `python3 -I samples/MapCue.DemoApp/check-consistency.py` | PASS (34 id, 5 flow) | — |
-| **Demo na emulatorze z TapCue 0.1.0** (`mapcue explore` + `compare-expected.py`) | `.github/workflows/demo-app.yml` job `android-explore` (`workflow_dispatch` na branchu), __RUN__ | __DEMO__ | artefakt `demo-android-explore` (raport, `explore.txt`, `status.txt`, workspace) |
+| **Demo na emulatorze z TapCue 0.1.0** (`mapcue explore` + `compare-expected.py`) | `.github/workflows/demo-app.yml` job `android-explore` (`workflow_dispatch` na branchu), run 40363853291, job 121717745333, commit `9bd464c` | **PASS**: `Exhausted` w 268 s; 7 stanów i 7 ekranów (Home, Accounts, Details, What's new, Settings, Verify, Profile), 26 krawędzi; 25/25 przejść `expected-graph.md` (basic, domyślna polityka); kontrole twarde `compare-expected.py` PASS (≥ 3 stany, 0 akcji ryzykownych, dowody before/after); `mapcue status`: 26 prób, 9 kroków nawigacji, 5 resetów, 4 wyjścia z aplikacji, 0 `OutcomeUnknown` | artefakt `demo-android-explore` (raport, `explore.txt`, `status.txt`, workspace) |
 | Demo na emulatorze lokalnie | — | NOT RUN: brak Android SDK i emulatora w sesji (`dl.google.com` blokowane, R-09) | — |
-| CI na PR | `ci.yml`, `demo-app.yml` | __CI__ | PR → Checks |
+| CI na PR | `ci.yml`, `demo-app.yml` | wynik w PR #8 (Checks) | PR → Checks |
 
-__DEMO_DETAILS__
+Demo na emulatorze (szczegóły w `docs/tapcue-compatibility.md` §11, raport w podsumowaniu joba i w artefakcie `demo-android-explore`):
+
+- Akcje pominięte przez politykę: `details.delete` (accountChange), `profile.investor` (accountChange, reguła operatora), `scenario.empty` i `settings.notifications` (stateChanging przy `shared-readonly`), `verify.sendcode` (communication), `verify.signout` (accountChange).
+- Identyfikatory stanów Home, What's new, Settings i Profile są takie same na emulatorze i w modelu `FakeDemoApp`, więc fake odwzorowuje tożsamość tych ekranów 1:1. Accounts, Details i Verify różnią się strukturą od modelu, ale były stabilne.
+- 6 sesji MCP, bo każdy reset przez `tapcue test` zamyka sesję (R-03). Nie było `DriverLost`.
 
 ## Ograniczenia, ryzyka, otwarte pytania
 
@@ -118,7 +122,7 @@ __DEMO_DETAILS__
 
 ## Stan roadmapy
 
-- STEP-00…04 i 02B: zmergowane. STEP-05: __ROADMAP05__.
+- STEP-00…04 i 02B: zmergowane. STEP-05: PR #8 otwarty.
 - W `docs/ROADMAP.md` zaktualizowane: tabela statusów (02B, 05), R-03, R-04 i macierz platform.
 - Następny: STEP-06 (Frontier scheduler), po merge tego PR.
 
@@ -136,7 +140,7 @@ __DEMO_DETAILS__
 
 > Jesteś kolejnym agentem MapCue. Masz wykonać wyłącznie STEP-06: Frontier scheduler.
 > Najpierw przeczytaj AGENTS.md, README.md, docs/ROADMAP.md (sekcja STEP-06, rejestr ryzyk R-02, R-03, R-11 i wspólne DONE), docs/architecture.md (§5.1, §5.3, §5.4, §5.5, §7.4, §12), ADR-0003 i ADR-0006, docs/handovers/STEP-05.md oraz kod: `src/MapCue.Application/Exploration/` (`ExplorationEngine`, `UiStabilizer`), `src/MapCue.Application/Graph/GraphCommitter.cs`, `src/MapCue.Application/Ports/IStateStore.cs`, `src/MapCue.Infrastructure.Sqlite/` (migracje 0001–0004, `SqliteRepositories`), `tests/MapCue.EndToEnd.Tests/` i `tests/MapCue.Testing/{FakeDevice,FakeDemoApp}.cs`.
-> Zweryfikuj, że PR STEP-05 (__PR_URL__) jest zmergowany, a `main` aktualny i z zielonym CI (`CI` i `Demo app`). Jeśli nie, zatrzymaj się i zgłoś to.
+> Zweryfikuj, że PR STEP-05 (<https://github.com/rtnk/MapCue/pull/8>) jest zmergowany, a `main` aktualny i z zielonym CI (`CI` i `Demo app`). Jeśli nie, zatrzymaj się i zgłoś to.
 > Następnie przedstaw krótki plan, zaimplementuj, przetestuj, utwórz jeden PR z branchem `feat/step-06-frontier-scheduler` (albo branchem wyznaczonym przez środowisko sesji) i `docs/handovers/STEP-06.md` w tym samym PR. Nie rozpoczynaj STEP-07 i nie merguj PR.
 > Zakres (ROADMAP STEP-06): lease i claim zadań, dzierżawa urządzenia, priorytety (lokalność, nowość, głębokość, ryzyko), budżety runu, idempotentne próby (UNIQUE `attemptId`), fazy próby i rekoncyliacja po restarcie (architektura §5.3), deterministyczne kryteria zakończenia, `representedBy` dla wierszy list.
 > Testy: kill procesu w każdej fazie próby (test integracyjny z procesem potomnym), brak podwójnego zatwierdzenia krawędzi, terminacja na grafie z cyklem i z nieskończoną listą, budżet zatrzymuje się w przewidywalnym punkcie. Wyniki urządzeniowe raportuj jako PASS, FAIL albo NOT RUN, z komendami.
