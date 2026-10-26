@@ -201,6 +201,20 @@ Fazy próby (journal, zapis przed efektem): `Created → RestoreStarted → Rest
 - `BudgetExhausted`: raport wymienia pozostały frontier z priorytetami, więc kolejny run może go kontynuować.
 - Preflight sprawdza: wersję TapCue (`tapcue --version` ∈ `supportedVersions`), urządzenie z allowlisty, aplikację z allowlisty na pierwszym planie po `launchApp`, środowisko profilu = test, poprawność konfiguracji i sekretów (tylko referencje), wolne miejsce na artefakty.
 
+### 5.5 Implementacja w STEP-05 (vertical slice)
+
+`MapCue.Application/Exploration/ExplorationEngine` realizuje §5.1 bez lease i odzysku (STEP-06) i bez trwałych recipe (STEP-09):
+
+- **Run:** tabela `runs` (migracja `0004`), `Created → Preflight → Running → Finished(reason)`; checkpoint i `runs/<runId>/run.json` przy zakończeniu. Preflight według §5.4: miejsce na dysku, wersja narzędzia (politykę wersji egzekwuje adapter TapCue przed każdą sesją), urządzenie, plik `setupFlow`, reset do stanu startowego profilu z aplikacją na pierwszym planie.
+- **Frontier:** zadania w `frontier_tasks`; zaakceptowana akcja zadania `ExploreAction` (`ValidatedDeviceAction`, `elementKey`, oczekiwany `identityHash`) w `task_actions`, więc wykonanie nie zależy od sesji reasonera. Kolejność: najpierw `AnalyzeState`, potem `ExploreAction` najbliższe bieżącemu stanowi po znanych krawędziach (BFS), remisy w kolejności store (priorytet, głębokość, sekwencja). `back` ma niższy priorytet, więc stan jest eksplorowany przed jego opuszczeniem. Zadanie ze stanu na głębokości `d` tworzy ścieżkę `d + 1`, więc `d ≥ maxDepth` daje `Cancelled`.
+- **Nawigacja i reset:** dojście do stanu źródłowego po krawędziach `observed`, deterministycznych, z zapisaną akcją. Każdy krok jest weryfikowany rozpoznaniem stanu. Przy braku ścieżki albo rozbieżności następuje reset (`setupFlow` przez `RunFlowAsync`, inaczej `launchApp`), a po nim jedna ponowna próba. Gdy i ona zawiedzie: `Blocked(ReplayDiverged)`.
+- **Próba:** świeży pre-snapshot, rozpoznanie stanu tylko do odczytu, `PreExecutionGuard` (inny stan albo brak elementu: `Blocked(ElementStale)` z dowodem). Następnie zapis próby w fazie `ActionDispatched` przed akcją, jedna akcja, stabilizacja (`UiStabilizer`: 2 kolejne obserwacje z tym samym `identityHash` i bez dyskryminatora `loading`, najwyżej do `uiSettleTimeout`; liczba obserwacji ograniczona też bez upływu zegara) i `GraphCommitter.CommitAttemptAsync`. Wynik narzędzia jest dowodem `ToolOutput` próby.
+- **Wyjście z aplikacji:** TapCue 0.1.0 nie podaje aplikacji na pierwszym planie, więc `AppPresenceDetector` wnioskuje z pakietów `resource-id`. Pakiet aplikacji oznacza `InApp`. Tylko inne pakiety (np. launcher) oznaczają `Left`. Same identyfikatory frameworka (`android:id/*`, np. `AlertDialog`) albo brak identyfikatorów dają `Unknown`, traktowane jak aplikacja. Po `Left` krawędź jest `executed` bez celu, a ekran spoza aplikacji jest dowodem próby, nie stanem grafu.
+- **Wyniki akcji:** `OutcomeUnknown` daje status zadania `OutcomeUnknown` bez ponowienia i reset przed kolejnym zadaniem. `Failed`/`Rejected`/`TimedOut` dają `Failed`. Awaria obserwacji po wykonanej akcji też kończy się commitem (krawędź `executed`). Kolejne awarie urządzenia (`MaxConsecutiveDeviceFailures`) kończą run jako `Failed`.
+- **Budżety:** `maxActions` (akcje, nawigacja i resety), `maxDuration`, `maxStates`/`maxScreens` (cały graf workspace), `maxDepth`. Reasoner korzysta z `AgentBudget` z sumą użycia całego workspace.
+- **Zakończenie:** brak zadań `Pending` daje `Exhausted`; pozostałe zadania `Blocked` dają `AllRemainingBlocked`.
+- **Determinizm:** identyfikatory grafu pochodzą z treści, identyfikatory prób z `(taskId, n)`, a `SeededIdGenerator` (`--seed`) ustala identyfikatory runu, zdarzeń i checkpointów.
+
 ## 6. Model danych (ScreenGraph)
 
 ```mermaid
@@ -274,6 +288,8 @@ Fingerprint **nie zależy od hasha screenshotu** ani od pikseli. Powstaje z zred
 4. Brak dopasowania oznacza **nowy LogicalScreen** (`provisional`).
 5. Dwa kandydaty w odległości < ε oznaczają **Ambiguous**: zapis obu hipotez, stan `provisional`, bez cichego scalania. Scalenie robi operator (`mapcue graph merge`, P1).
 6. Snapshot niestabilny (odcisk zmienia się w oknie stabilizacji) albo ze wskaźnikiem ładowania oznacza **Transient**: ponowna obserwacja do `uiSettleTimeout`, potem stan `loading` z flagą.
+
+**STEP-05 (kalibracja na demo app, R-04):** fingerprint w wersji 2 pomija kontenery frameworka (`android:id/content` i kontenery MAUI `action_bar_root`, `navigation_layout`, `navigationlayout_content`, `nav_host`) jako kotwice tożsamości. Krok 3 działa przez `identity.screenHints` (wzorce `resource-id` znacznika ekranu, dla MAUI `AutomationId` tytułu strony). Szczegóły: ADR-0006.
 
 Agent może zaproponować nazwę i „to jest ten sam ekran co X”. Taka propozycja trafia do bazy jako hipoteza (`inferred`) i nie zmienia tożsamości.
 

@@ -26,6 +26,7 @@ budgets:
   observeTimeout: 20s
 
 agent:
+  reasoner: rule-based   # rule-based (default: offline heuristics, no LLM) | cli (the agent CLI below); STEP-05
   runtime: container     # `local` additionally needs allowLocalExecution: true; no fallback between runtimes (ADR-0004)
   allowLocalExecution: false
   sendScreenshots: false # true is refused until screenshot redaction exists (P1)
@@ -50,6 +51,12 @@ policy:
       riskClass: destructive
       resourceIdPattern: "^com\\.example\\.mapcue\\.demo:id/admin_"
 
+# Screen identity (STEP-05): resource-id patterns of an element that names the screen (e.g. a MAUI AutomationId on the page
+# title). Snapshots with different markers are never the same screen; the same marker is the same logical screen.
+identity:
+  screenHints:
+    - ':id/screen\.[A-Za-z0-9_.-]+$'
+
 profiles:
   - profileId: basic
     platform: android
@@ -62,6 +69,8 @@ profiles:
       password: secret://env/MAPCUE_DEMO_PASSWORD
       email: generated:email
     capabilities: []
+    # setupFlow: flows/setup-basic.yaml   # optional TapCue flow (relative to this file) from a clean start to the profile's
+    #                                     # start state; without it `mapcue explore` starts the app with a plain launchApp
 
 # TapCue integration (optional; the values below are the defaults). docs/tapcue-compatibility.md §8.
 tapcue:

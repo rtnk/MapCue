@@ -53,8 +53,10 @@ jobs:
         run: |
           dotnet run --project src/MapCue.Cli --configuration Release --no-build -- --help
           dotnet run --project src/MapCue.Cli --configuration Release --no-build -- --version
+          dotnet run --project src/MapCue.Cli --configuration Release --no-build -- status --workspace "$RUNNER_TEMP/mapcue-empty" | grep -q '^no runs'
+          test ! -e "$RUNNER_TEMP/mapcue-empty"
           set +e
-          dotnet run --project src/MapCue.Cli --configuration Release --no-build -- status
+          dotnet run --project src/MapCue.Cli --configuration Release --no-build -- report
           code=$?
           set -e
           test "$code" -eq 3 || { echo "expected exit code 3 (not implemented), got $code"; exit 1; }

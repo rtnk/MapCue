@@ -11,7 +11,7 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 | 00 | Discovery & architecture | P0 | — | zmergowany (PR #2) |
 | 01 | Solution foundation | P0 | 00 | zmergowany (PR #3) |
 | 02 | TapCue adapter | P0 | 01 | zmergowany (PR #4) |
-| 02B | Demo/fixture app (MAUI) | P0 | 01 (równolegle z 03/04 po 02) | PR #7 otwarty (czeka na review i merge) |
+| 02B | Demo/fixture app (MAUI) | P0 | 01 (równolegle z 03/04 po 02) | zmergowany (PR #7) |
 | 03 | Graph & persistence | P0 | 01 | zmergowany (PR #5) |
 | 04 | Agent interpretation | P0 | 01, 03 | zmergowany (PR #6) |
 | 05 | Vertical slice crawler | P0 (MVP) | 02, 02B, 03, 04 | nie rozpoczęty |
