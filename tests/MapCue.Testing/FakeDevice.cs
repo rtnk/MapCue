@@ -107,6 +107,14 @@ public sealed class FakeDevice : IDeviceAutomation
     /// <summary>When set, <see cref="ExecuteAsync"/> returns this outcome for actions on that resource id (fault injection).</summary>
     public Dictionary<string, ActionOutcome> Faults { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>Resource ids whose elements are neither reported nor tappable (e.g. removed by the app after an analysis).</summary>
+    public HashSet<string> HiddenElements { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>After a successful action on this resource id, the next observation fails once (device lost mid-attempt).</summary>
+    public string? FailObservationAfter { get; set; }
+
+    private bool _failNextObservation;
+
     public Task<ToolVersion> GetVersionAsync(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -124,6 +132,12 @@ public sealed class FakeDevice : IDeviceAutomation
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
         EnsureDevice(device);
+        if (_failNextObservation)
+        {
+            _failNextObservation = false;
+            throw new InvalidOperationException("injected observation failure");
+        }
+
         Observations++;
         var screen = _app.Screen(CurrentScreenId);
         if (screen.AdvanceTo is not null && ++_observationsOnScreen > screen.AdvanceAfterObservations)
@@ -133,6 +147,7 @@ public sealed class FakeDevice : IDeviceAutomation
         }
 
         var elements = screen.Elements
+            .Where(e => !HiddenElements.Contains(e.ResourceId))
             .Select(e => new RawElement(string.IsNullOrEmpty(e.ResourceId) ? null : e.ResourceId, e.Text, e.AccessibilityText, e.ClassName, Clickable: e.Clickable, Enabled: true))
             .ToList();
         return Task.FromResult(new RawObservation(device, screen.Package ?? _app.AppId, elements, HashOf(screen), _clock.UtcNow));
@@ -152,13 +167,14 @@ public sealed class FakeDevice : IDeviceAutomation
         switch (action.Type)
         {
             case ActionType.Tap:
-                var element = _app.Screen(CurrentScreenId).Elements.FirstOrDefault(e => e.Clickable && Matches(e, action));
+                var element = _app.Screen(CurrentScreenId).Elements.FirstOrDefault(e => e.Clickable && !HiddenElements.Contains(e.ResourceId) && Matches(e, action));
                 if (element is null)
                 {
                     return Result(action, ActionOutcome.Failed, "element not found");
                 }
 
                 Navigate(element);
+                _failNextObservation = element.ResourceId == FailObservationAfter;
                 return Result(action, ActionOutcome.Succeeded, null);
             case ActionType.Back:
                 if (_app.Screen(CurrentScreenId).IgnoresBack)

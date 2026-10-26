@@ -169,8 +169,9 @@ public sealed class ExplorationEngine
             {
                 (reason, detail) = (RunFinishReason.BudgetExhausted, ex.Message);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex)
             {
+                // Includes cancellations that did not come from the operator (e.g. a timeout inside a port): the run row never stays Running.
                 (reason, detail) = (RunFinishReason.Failed, $"{ex.GetType().Name}: {_e.Redact(ex.Message)}");
             }
 
@@ -240,8 +241,15 @@ public sealed class ExplorationEngine
                 },
                 ct);
 
-            var start = await ResetAsync(ct);
-            return start is null ? "the app could not be started in the profile's start state (setup flow or launch failed, or another app is in the foreground)" : null;
+            try
+            {
+                var start = await ResetAsync(ct);
+                return start is null ? "the app could not be started in the profile's start state (setup flow or launch failed, or another app is in the foreground)" : null;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not BudgetStopException)
+            {
+                return "the start state could not be observed: " + _e.Redact(ex.Message);
+            }
         }
 
         private bool DeviceAllowed(string deviceId) =>
@@ -299,12 +307,12 @@ public sealed class ExplorationEngine
                 var task = await NextTaskAsync(ct);
                 if (task is null)
                 {
-                    var stats = await _e.Store.InTransactionAsync(uow => uow.Frontier.ListTasksAsync(FrontierTaskStatus.Blocked, ct), ct);
-                    var blocked = stats.Count(t => t.ContextId == _context!.ContextId);
-                    var completed = await _e.Store.InTransactionAsync(uow => uow.Frontier.ListTasksAsync(FrontierTaskStatus.Completed, ct), ct);
-                    return blocked > 0 && completed.All(t => t.ContextId != _context!.ContextId)
-                        ? (RunFinishReason.AllRemainingBlocked, $"{blocked} blocked task(s)")
-                        : (RunFinishReason.Exhausted, blocked > 0 ? $"discovered graph exhausted; {blocked} blocked task(s) remain" : "discovered graph exhausted");
+                    // Blocked tasks are not final (the operator can resume them, STEP-09): with any left, the run did not exhaust the graph.
+                    var blocked = (await _e.Store.InTransactionAsync(uow => uow.Frontier.ListTasksAsync(FrontierTaskStatus.Blocked, ct), ct))
+                        .Count(t => t.ContextId == _context!.ContextId);
+                    return blocked > 0
+                        ? (RunFinishReason.AllRemainingBlocked, $"no pending task; {blocked} blocked task(s) wait for the operator")
+                        : (RunFinishReason.Exhausted, "discovered graph exhausted");
                 }
 
                 if (task.Type == TaskType.AnalyzeState)
@@ -371,7 +379,8 @@ public sealed class ExplorationEngine
             var recorded = await LoadLatestSnapshotAsync(task.FromStateId!, ct);
             if (recorded is null)
             {
-                await SetTaskStatusAsync(task, FrontierTaskStatus.Failed, new BlockedReason(BlockedReasonCode.ElementStale, "no stored snapshot of the state in this context", [], null), ct);
+                await SetTaskStatusAsync(task, FrontierTaskStatus.Failed, null, ct);
+                await AppendEventAsync(RunEventTypes.TaskFailed, task.TaskId, new() { ["error"] = "no stored snapshot of the state in this context" }, ct);
                 return;
             }
 
@@ -447,8 +456,10 @@ public sealed class ExplorationEngine
                     return;
                 }
 
-                await ExploreFromSourceAsync(task, stored, spec, ct);
-                _consecutiveDeviceFailures = 0;
+                if (await ExploreFromSourceAsync(task, stored, spec, ct))
+                {
+                    _consecutiveDeviceFailures = 0;
+                }
             }
             catch (BudgetStopException)
             {
@@ -465,7 +476,8 @@ public sealed class ExplorationEngine
             }
         }
 
-        private async Task ExploreFromSourceAsync(FrontierTask task, TaskAction stored, ActionSpec spec, CancellationToken ct)
+        /// <summary>Runs one attempt from the source state. Returns false when the device misbehaved (observation failure after the action).</summary>
+        private async Task<bool> ExploreFromSourceAsync(FrontierTask task, TaskAction stored, ActionSpec spec, CancellationToken ct)
         {
             var attempts = await _e.Store.InTransactionAsync(uow => uow.Frontier.ListAttemptsAsync(task.TaskId, ct), ct);
             var n = attempts.Count == 0 ? 1 : attempts.Max(a => a.N) + 1;
@@ -485,7 +497,7 @@ public sealed class ExplorationEngine
             {
                 _current = sourceNow;
                 await BlockAsync(task, stale, sourceNow == task.FromStateId ? "the element is gone or disabled on a fresh snapshot" : "the screen is not the source state on a fresh snapshot", before.Evidence.Select(e => e.EvidenceId).ToList(), ct);
-                return;
+                return true;
             }
 
             var startedAt = _e.Clock.UtcNow;
@@ -507,19 +519,28 @@ public sealed class ExplorationEngine
             RecordedSnapshot? after = null;
             StableObservation? settled = null;
             var appLeft = false;
+            Exception? observeFailure = null;
             if (execution.Outcome == ActionOutcome.Succeeded)
             {
-                settled = await _stabilizer.ObserveAsync(_device, _profile.AppId, _normalization, ct);
-                var recordedAfter = await _recorder.RecordAsync(settled.Observation, _context!, _o.InputValues, ct);
-                if (AppPresenceDetector.Of(recordedAfter.Normalized, _profile.AppId) == AppPresence.Left)
+                try
                 {
-                    // The screen outside the app is evidence of the attempt, never a state of the app's graph.
-                    appLeft = true;
-                    evidence.AddRange(recordedAfter.Evidence.Select(e => e with { SnapshotId = null, AttemptId = attemptId }));
+                    settled = await _stabilizer.ObserveAsync(_device, _profile.AppId, _normalization, ct);
+                    var recordedAfter = await _recorder.RecordAsync(settled.Observation, _context!, _o.InputValues, ct);
+                    if (AppPresenceDetector.Of(recordedAfter.Normalized, _profile.AppId) == AppPresence.Left)
+                    {
+                        // The screen outside the app is evidence of the attempt, never a state of the app's graph.
+                        appLeft = true;
+                        evidence.AddRange(recordedAfter.Evidence.Select(e => e with { SnapshotId = null, AttemptId = attemptId }));
+                    }
+                    else
+                    {
+                        after = recordedAfter;
+                    }
                 }
-                else
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    after = recordedAfter;
+                    // The action ran but its target could not be observed: the attempt is still committed (edge executed, no target).
+                    observeFailure = ex;
                 }
             }
 
@@ -530,6 +551,11 @@ public sealed class ExplorationEngine
 
             switch (execution.Outcome)
             {
+                case ActionOutcome.Succeeded when observeFailure is not null:
+                    _current = null;
+                    _consecutiveDeviceFailures++;
+                    await AppendEventAsync(RunEventTypes.TaskFailed, task.TaskId, new() { ["error"] = $"observation after the action failed: {observeFailure.GetType().Name}: {_e.Redact(observeFailure.Message)}" }, ct);
+                    break;
                 case ActionOutcome.Succeeded when appLeft:
                     _current = null;
                     _counters = _counters with { AppLeft = _counters.AppLeft + 1 };
@@ -578,6 +604,7 @@ public sealed class ExplorationEngine
                 result.EdgeStatus,
                 settled?.Observations ?? 0,
                 settled?.Stable ?? false));
+            return observeFailure is null;
         }
 
         // ---------------------------------------------------------------- navigation and reset
@@ -664,8 +691,8 @@ public sealed class ExplorationEngine
             _current = null;
             if (_o.SetupFlowPath is { } flow)
             {
-                var output = Path.Combine(RunDirectory, "setup", _resets.ToString(CultureInfo.InvariantCulture));
-                var run = await _e.Device.RunFlowAsync(_device, new FlowFile(flow), new FlowRunOptions(_o.SetupFlowTimeout, output), ct);
+                // TapCue writes its own test output (unredacted) to the adapter's work directory, never under runs/ (architecture §10.3).
+                var run = await _e.Device.RunFlowAsync(_device, new FlowFile(flow), new FlowRunOptions(_o.SetupFlowTimeout, null), ct);
                 if (run.Outcome != ActionOutcome.Succeeded)
                 {
                     await AppendEventAsync(RunEventTypes.AppReset, _run.RunId, new() { ["outcome"] = run.Outcome.ToString(), ["error"] = run.ErrorKind.ToString() }, ct);

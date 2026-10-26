@@ -292,4 +292,54 @@ public class ExplorationEngineTests
         Assert.Equal(RunFinishReason.StoppedByOperator, run!.FinishReason);
         Assert.NotNull(await h.ReadAsync(u => u.Frontier.GetLatestCheckpointAsync(result.RunId, CancellationToken.None)));
     }
+
+    [Fact]
+    public async Task Observation_failure_after_the_action_still_commits_the_attempt()
+    {
+        await using var h = ExplorationHarness.Create();
+        h.Device.FailObservationAfter = FakeDemoApp.Id("home.whatsnew");
+
+        var result = await h.RunAsync();
+
+        Assert.Equal(RunFinishReason.Exhausted, result.Reason);
+        var states = await StatesByScreenAsync(h);
+        var edges = await h.ReadAsync(u => u.Graph.ListEdgesAsync(CancellationToken.None));
+        var candidates = await h.ReadAsync(u => u.Graph.ListCandidatesAsync(states["screen.home"].StateId, CancellationToken.None));
+        var whatsNew = candidates.Single(c => c.CanonicalSelector.Contains("home.whatsnew", StringComparison.Ordinal));
+        var edge = Assert.Single(edges, e => e.ActionKey == whatsNew.ActionKey);
+        Assert.Equal((EdgeStatus.Executed, (string?)null), (edge.Status, edge.ToStateId));
+        Assert.Single(h.Device.ExecutedActions, a => a.TargetResourceId == FakeDemoApp.Id("home.whatsnew"));
+        var events = await h.ReadAsync(u => u.Events.ListAsync(0, 10_000, CancellationToken.None));
+        Assert.Contains(events, e => e.Type == "task.failed" && e.PayloadJson.Contains("injected observation failure", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Element_gone_before_execution_blocks_the_task_as_stale()
+    {
+        await using var h = ExplorationHarness.Create();
+        var options = h.Options() with
+        {
+            Progress = line =>
+            {
+                // The app drops the button after Home was analysed: the explore task meets a different screen.
+                if (line.StartsWith("analyze", StringComparison.Ordinal))
+                {
+                    h.Device.HiddenElements.Add(FakeDemoApp.Id("home.whatsnew"));
+                }
+            },
+        };
+
+        var result = await h.Engine().RunAsync(options, CancellationToken.None);
+
+        // The first explore task meets the changed Home (ElementStale, with the fresh snapshot as evidence); the old Home state is
+        // unreachable from then on, so the remaining tasks of that state block as ReplayDiverged instead of acting on another screen.
+        Assert.Equal(RunFinishReason.AllRemainingBlocked, result.Reason);
+        var blocked = await h.ReadAsync(u => u.Frontier.ListTasksAsync(FrontierTaskStatus.Blocked, CancellationToken.None));
+        var stale = Assert.Single(blocked, t => t.BlockedReason!.Code == BlockedReasonCode.ElementStale);
+        Assert.NotEmpty(stale.BlockedReason!.EvidenceIds);
+        Assert.All(blocked.Where(t => t != stale), t => Assert.Equal(BlockedReasonCode.ReplayDiverged, t.BlockedReason!.Code));
+        Assert.All(blocked, t => Assert.Equal(stale.FromStateId, t.FromStateId));
+        Assert.DoesNotContain(h.Device.ExecutedActions, a => a.TargetResourceId == FakeDemoApp.Id("home.whatsnew"));
+        Assert.True(result.Counters.Blocked >= 1);
+    }
 }
