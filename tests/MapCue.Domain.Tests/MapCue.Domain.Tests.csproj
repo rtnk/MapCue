@@ -3,4 +3,7 @@
     <ProjectReference Include="..\..\src\MapCue.Domain\MapCue.Domain.csproj" />
     <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FsCheck.Xunit" />
+  </ItemGroup>
 </Project>

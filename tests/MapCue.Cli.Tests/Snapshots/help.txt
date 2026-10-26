@@ -17,4 +17,5 @@ Commands:
   export           Export verified paths as TapCue flows.
   diff             Compare screen maps of two runs or builds.
   doctor           Check TapCue, devices and environment prerequisites.
+  graph            Maintain the screen graph (test tooling: import recorded snapshots).
 

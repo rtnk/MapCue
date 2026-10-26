@@ -29,3 +29,11 @@ Graf, frontier i stan prób muszą być aktualizowane atomowo i przetrwać zabic
 
 - Brak HA i pracy wielu hostów (świadomie, ADR-0001). Port `IStateStore` pozwala później dodać adapter PostgreSQL lub TOOL-010.
 - Testy crash-recovery muszą zabijać proces w każdej fazie próby (STEP-06/09).
+
+## Implementacja w STEP-03
+
+- `Microsoft.Data.Sqlite` z ręcznym SQL, bez Dappera i EF. Mapowanie jest w `src/MapCue.Infrastructure.Sqlite/SqliteRepositories.cs`.
+- Migracje `Migrations/NNNN_name.sql` są zasobami osadzonymi. `schema_migrations` przechowuje wersję, nazwę, sumę SHA-256 i datę, a `PRAGMA user_version` wskazuje ostatnią wersję. Baza z nieznaną (nowszą) migracją albo ze zmienioną sumą jest odrzucana (`SchemaMismatchException`).
+- Jedno połączenie i transakcje `BEGIN IMMEDIATE` serializowane w procesie. Zagnieżdżanie jest zabronione. Wyjątek albo anulowanie oznacza rollback. Blokada workspace `.mapcue/lock` (`WorkspaceLock`) to wyłączna blokada pliku zwalniana przez system przy śmierci procesu (R-11).
+- Identyfikatory obiektów grafu (stan, ekran, krawędź, zadanie, snapshot, dowód, kontekst) pochodzą z treści (hash), więc ten sam wkład daje ten sam graf. Generatora `IIdGenerator` używają tylko zdarzenia outboxa.
+- Artefakty: `FileSystemArtifactStore` redaguje tekst (`IRedactor`) przed hashowaniem i zapisem (plik tymczasowy, `fsync`, rename). Binarnie można zapisać tylko `Screenshot`. `mapcue gc` jeszcze nie istnieje.

@@ -16,4 +16,10 @@ public static class ExitCodes
 
     /// <summary><c>mapcue doctor</c> found at least one failing prerequisite.</summary>
     public const int PrerequisitesFailed = 4;
+
+    /// <summary>An input file other than the configuration (e.g. a <c>graph import</c> plan) is missing, unreadable or invalid.</summary>
+    public const int InputInvalid = 5;
+
+    /// <summary>The workspace is locked by another MapCue process or its database schema is newer or changed.</summary>
+    public const int WorkspaceUnavailable = 6;
 }

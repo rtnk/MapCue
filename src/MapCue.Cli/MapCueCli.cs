@@ -3,6 +3,7 @@ using System.CommandLine.Help;
 using System.CommandLine.Invocation;
 using System.Reflection;
 using MapCue.Cli.Configuration;
+using MapCue.Cli.Graph;
 using Microsoft.Extensions.Logging;
 
 namespace MapCue.Cli;
@@ -79,6 +80,7 @@ public static class MapCueCli
         root.Subcommands.Add(diff);
 
         root.Subcommands.Add(DoctorCommand.Build(host, logger));
+        root.Subcommands.Add(GraphCommand.Build(host, logger));
         return root;
     }
 

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "mapcue.graph-import/1",
+  "device": "emulator-5554",
+  "context": {
+    "profileId": "smoke",
+    "platform": "android",
+    "appId": "com.android.settings",
+    "appBuildId": "android-34-google_apis",
+    "locale": "en-US",
+    "scenarioId": "settings-cycle"
+  },
+  "observations": [
+    { "id": "settings", "file": "../../MapCue.Adapters.TapCue.ContractTests/Fixtures/tapcue-0.1.0/mcp-android-settings.jsonl", "format": "tapcue-mcp-transcript", "index": 0, "observedAt": "2026-10-25T22:18:00Z" },
+    { "id": "launcher", "file": "../../MapCue.Adapters.TapCue.ContractTests/Fixtures/tapcue-0.1.0/mcp-android-settings.jsonl", "format": "tapcue-mcp-transcript", "index": 1, "observedAt": "2026-10-25T22:18:05Z" }
+  ],
+  "transitions": [
+    { "from": "settings", "action": { "type": "back" }, "to": "launcher", "durationMs": 900 },
+    { "from": "launcher", "action": { "type": "launchApp", "text": "com.android.settings" }, "to": "settings", "durationMs": 2100 }
+  ]
+}
