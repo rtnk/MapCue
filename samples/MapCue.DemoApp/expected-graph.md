@@ -17,7 +17,7 @@ Przejścia potwierdzają na emulatorze flow `tour-basic.yaml` i `tour-investor.y
 - Wiersze list (rachunki, fundusze) nie mają `AutomationId`, więc nie mają `resource-id`. Ich tekst zawiera kwoty i jest maskowany.
 - Selektory w flow: `id: "(.*/)?<AutomationId>"` (regex całego `resource-id`; pasuje do formy Androida z pakietem i do identyfikatora iOS). Wiersze i przyciski `AlertDialog` wybierane są tekstem.
 - MAUI ustawia też własne identyfikatory kontenerów (`navigation_layout`, `navigationlayout_content`, `action_bar_root`). To stabilne kotwice wspólne dla wszystkich ekranów.
-- Dokładne fingerprinty (`identityHash`) nie są tu przypięte. Kalibracja progów na nagraniach z tej aplikacji to zadanie STEP-05 (R-04). Hierarchie ekranów po setupie obu profili są w artefakcie `demo-android-flows` (`hierarchy-*.txt`) i w logu joba.
+- Dokładne fingerprinty (`identityHash`) nie są tu przypięte. Kalibracja progów na nagraniach z tej aplikacji to zadanie STEP-05 (R-04). Hierarchie ekranu Home po setupie obu profili są w [`recordings/`](recordings/) (oraz w artefakcie `demo-android-flows` każdego runu).
 
 ## Profile i scenariusze
 

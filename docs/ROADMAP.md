@@ -166,9 +166,9 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 
 | Platforma | Snapshot | Akcja | Replay/eksport | A11y | Stan |
 |---|---|---|---|---|---|
-| Android emulator (Linux host) | PASS (MCP i CLI) | PASS (`launchApp`, `back`) | PASS (`test --test-output-dir`, bez eksportu) | NOT RUN | STEP-02: API 34 w GitHub Actions z KVM (`tapcue-compatibility.md` §9) |
+| Android emulator (Linux host) | PASS (MCP i CLI) | PASS (`launchApp`, `back`; STEP-02B: `tapOn` po `id`, `back`, `assert*` na demo app) | PASS (`test --test-output-dir`, bez eksportu; STEP-02B: 5 flow demo app) | NOT RUN | STEP-02: API 34 w GitHub Actions z KVM (`tapcue-compatibility.md` §9). STEP-02B: APK demo app (MAUI, Release) zbudowany na ubuntu, flow setupu obu profili i trasy `expected-graph.md` PASS (run 40335436029) |
 | Android emulator (macOS host) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | — |
-| iOS Simulator (macOS arm64) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | R-01: job `ios` gotowy (`workflow_dispatch`), nie uruchomiony |
+| iOS Simulator (macOS arm64) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | R-01: job `ios` gotowy (`workflow_dispatch`), nie uruchomiony. STEP-02B: build demo app `net10.0-ios` (job `ios-build` w `demo-app.yml`, `workflow_dispatch`) NOT RUN |
 | Android fizyczne | NOT RUN | NOT RUN | NOT RUN | NOT RUN | nieprzetestowane w TapCue |
 | iOS fizyczne | unsupported (TapCue MCP) | unsupported | unsupported | unsupported | luka TapCue |
 
