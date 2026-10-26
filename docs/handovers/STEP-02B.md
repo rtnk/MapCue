@@ -2,7 +2,7 @@
 
 ## Status i identyfikatory
 
-- Status: **DONE** (zakres ROADMAP STEP-02B zrealizowany; APK i flow na emulatorze PASS w CI; build iOS NOT RUN, opis niżej). Merge wykonuje Robert.
+- Status: **DONE** (zakres ROADMAP STEP-02B zrealizowany; APK i flow na emulatorze PASS w CI; build iOS FAIL z powodu wersji Xcode na runnerze, opis niżej; ROADMAP dopuszcza „iOS: build na macOS albo NOT RUN”). Merge wykonuje Robert.
 - Branch: `claude/step-02b-demo-app-wm0b88` (prompt etapu wskazywał `feat/step-02b-demo-app`; środowisko sesji wyznacza ten branch)
 - PR URL i status: <https://github.com/rtnk/MapCue/pull/7> (open, czeka na review i merge)
 - Commit SHA: kod i flow `2a08fcc` (zweryfikowany w CI: runy 40335436029 `Demo app` i 40335435627 `CI`); ten handoff jest w kolejnym commicie na tym samym branchu, więc aktualny head jest w PR.
@@ -69,12 +69,12 @@
 | Trasa `tour-basic` (modal, cykle Home↔Accounts, Details→Home, back z Details, brak Investments, cykl do wyboru profilu) | jw. | **PASS** (38 s) | jw. |
 | Trasa `tour-investor` (Investments, 3 rachunki, potwierdzenie usunięcia anulowane, blokada odporna na `back`) | jw. | **PASS** (26 s) | jw. |
 | Pierwszy run z selektorami tekstowymi | run 40333292191 | FAIL (wszystkie flow: `Assertion is false: "screen.profile" is visible`), przyczyna: `AutomationId` = `resource-id`; naprawione w `2a08fcc` | log joba |
-| Build iOS (symulator) | `dotnet workload install maui-ios` + `dotnet build samples/MapCue.DemoApp/MapCue.DemoApp.csproj -f net10.0-ios -p:TargetFrameworks=net10.0-ios -c Debug -p:RuntimeIdentifier=iossimulator-arm64` / job `ios-build` (`macos-26`) | **NOT RUN**: job jest tylko `workflow_dispatch`, a `workflow_dispatch` działa dopiero, gdy workflow jest na `main`. Po merge: Actions → „Demo app” → Run workflow, `ios=true` | — |
+| Build iOS (symulator) | `dotnet workload install maui-ios` + `dotnet build samples/MapCue.DemoApp/MapCue.DemoApp.csproj -f net10.0-ios -p:TargetFrameworks=net10.0-ios -c Debug -p:RuntimeIdentifier=iossimulator-arm64` / job `ios-build` (`macos-26`), `workflow_dispatch` z `ios=true` na branchu PR (za zgodą Roberta) | **FAIL**, błąd środowiska, nie kodu: `This version of .NET for iOS (27.1.10018) requires Xcode 27.1. The current version of Xcode is 26.6` (run 40354238048; to samo po wyborze najnowszego Xcode, run 40354509027). Próba z pakietem `net10.0-ios26.0`: `(26.0.11017) requires Xcode 26.0. The current version of Xcode is 26.6` (run 40354956988). Workload `maui-ios` 10.0.114 (manifest iOS 27.1.10018) | `demo-ios-build-log` (binlog) |
 | Flow na iOS Simulator | — | NOT RUN (poza zakresem 02B; R-01) | — |
 
 ## Ograniczenia, ryzyka, otwarte pytania
 
-- **iOS: NOT RUN.** Kryterium: merge PR, ręczne uruchomienie `demo-app.yml` z `ios=true` (płatne minuty macOS). Możliwe ryzyko: wersja Xcode na `macos-26` niezgodna z workloadem `maui-ios` (wtedy błąd walidacji Xcode w logu).
+- **iOS: FAIL (środowisko CI, R-10).** Każdy pakiet .NET for iOS wymaga dokładnie jednej wersji Xcode (major.minor). Obraz `macos-26` z 2026-10-26 ma tylko Xcode 26.6, a workload instaluje pakiety dla Xcode 27.1 (domyślny `net10.0-ios`) i 26.0. Kryterium odblokowania (jedno z): obraz runnera z Xcode 27.1 (sprawdzić ponownie, np. po 8.11.2026 przy odnowieniu minut), przypięcie wersji workloadu (`dotnet workload install maui-ios --version <workload set zgodny z Xcode 26.6>`) albo własny runner macOS z Xcode 27.1. Job wybiera najnowszy zainstalowany Xcode i wypisuje listę dostępnych. Kod aplikacji nie był kompilowany dla iOS, więc błędy specyficzne dla iOS (np. `VerifyPage` z `UIModalPresentationStyle.FullScreen`) są niewykryte.
 - **Selektory iOS** (`id: "(.*/)?<id>"` na `accessibilityIdentifier`) są niesprawdzone; flow były uruchamiane tylko na Androidzie.
 - Wersja workloadu `maui-android` nie jest przypięta (najnowsza dla pasma SDK z `global.json` w chwili runu); zmiana MAUI może zmienić mapowanie `AutomationId` lub drzewo. Wtedy `check-consistency.py` nie wykryje problemu, ale wykryją go flow na emulatorze. Do rozważenia: plik `rollback` workloadu w STEP-12.
 - Strona modalna MAUI (What's new, Verify) to na Androidzie osobne okno; normalizacja MapCue nie oznaczy jej jako `modal` (brak roli `dialog` i id `android:id/*`). `AlertDialog` jest oznaczany. Kalibracja w STEP-05.
@@ -82,7 +82,7 @@
 - Ładowanie trwa 1500 ms; flow go nie sprawdzają (stan przejściowy, asercja byłaby wyścigiem). Widoczność stanu `loading` sprawdzi STEP-05 stabilizacją.
 - APK jest podpisany kluczem debug SDK; to tylko aplikacja testowa, nie do dystrybucji.
 - Dane w aplikacji są fikcyjne (nazwy rachunków, maskowane numery `•••• 0001`, kwoty); brak sekretów, sieci i uprawnień.
-- Pytanie do Roberta: czy uruchomić `ios-build` po merge (koszt macOS), czy zostawić NOT RUN do STEP-12.
+- Pytanie do Roberta: czy ponowić `ios-build` po aktualizacji obrazu `macos-26` (Xcode 27.1), czy przypiąć workload do wersji zgodnej z Xcode 26.6 (wymaga ustalenia numeru workload set).
 
 ## Stan roadmapy
 

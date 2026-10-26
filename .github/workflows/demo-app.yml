@@ -194,14 +194,12 @@ jobs:
           dotnet workload install maui-ios
           dotnet workload list
 
-      # net10.0-ios uses the newest iOS SDK pack of the workload (27.1, needs Xcode 27.1). The runner image has Xcode 26.x
-      # (run 40354509027), so the build targets the iOS 26.0 SDK pack the workload also installs.
+      # Each .NET for iOS SDK pack requires one Xcode major.minor (27.1.10018: Xcode 27.1; the 26.0 pack: Xcode 26.0).
+      # On 2026-10-26 macos-26 had only Xcode 26.6, so this fails until the image ships Xcode 27.1 (R-10, STEP-02B handoff).
       - name: Build for the iOS Simulator (no signing)
-        env:
-          IOS_TFM: net10.0-ios26.0
         run: |
           mkdir -p reports
-          dotnet build "$PROJECT" -f "$IOS_TFM" -p:TargetFrameworks="$IOS_TFM" -c Debug \
+          dotnet build "$PROJECT" -f net10.0-ios -p:TargetFrameworks=net10.0-ios -c Debug \
             -p:RuntimeIdentifier=iossimulator-arm64 -bl:reports/ios-build.binlog
           find samples/MapCue.DemoApp/bin -name '*.app' -maxdepth 5 -print
 
