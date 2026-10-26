@@ -2,7 +2,7 @@
 
 MapCue (nazwa robocza, TOOL-009 „MobileGraph Explorer”) to planowane narzędzie CLI w .NET 10. Ma deterministycznie eksplorować aplikacje mobilne (Android/iOS) przez [TapCue](https://github.com/rtnk/TapCue). Buduje trwały graf ekranów, stanów i wariantów profili, kontrakty ekranów z macierzą dostępności, a zweryfikowane ścieżki eksportuje jako flow YAML TapCue.
 
-**Stan:** STEP-03 (graf i trwałość). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0, działające `mapcue doctor`, a od STEP-03 model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Pozostałe komendy to zaślepki. Eksploracja jeszcze nie działa (od STEP-05).
+**Stan:** STEP-04 (interpretacja przez agenta). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0, działające `mapcue doctor`, a od STEP-03 model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Pozostałe komendy to zaślepki. Eksploracja jeszcze nie działa (od STEP-05).
 
 ## Szybki start (bez urządzenia, TapCue i LLM)
 
@@ -27,6 +27,17 @@ dotnet run --project src/MapCue.Cli -- graph import tests/Fixtures/graph-import/
 ```
 
 Plan (`mapcue.graph-import/1`, JSON) opisuje kontekst (profil, platforma, aplikacja, build, locale, scenariusz), obserwacje (pliki `tapcue-inspect-screen`, `tapcue-hierarchy`, `tapcue-mcp-transcript` z `index`, `mapcue-elements`) i przejścia (`from`, `action`, `to`, `outcome`). Przykład na nagraniach z emulatora: [`tests/Fixtures/graph-import/android-settings-cycle.json`](tests/Fixtures/graph-import/android-settings-cycle.json). Workspace: `mapcue.db` (SQLite, WAL), `blobs/sha256/..` (zredagowane snapshoty), `lock`.
+
+## Agent (STEP-04)
+
+Reasoner tylko interpretuje zredagowany snapshot i proponuje akcje po `elementRef`; nie dostaje narzędzi TapCue (ADR-0004). Każda odpowiedź przechodzi walidację z [architektury §9.5](docs/architecture.md), a do wykonania może trafić tylko typowana akcja z allowlisty, z ryzykiem `max(agent, reguły)` dopuszczonym przez politykę profilu. Konfiguracja: sekcje `agent` i `policy.riskRules` w [przykładzie](docs/examples/mapcue.example.yaml). `CliAgentReasoner` działa domyślnie w kontenerze (`agent.containerImage` wybiera operator); `agent.runtime: local` wymaga `agent.allowLocalExecution: true` i nie ma fallbacku między trybami.
+
+Smoke z prawdziwym CLI (pomijany bez zmiennej):
+
+```bash
+MAPCUE_AGENT_SMOKE=local dotnet test tests/MapCue.Adapters.Reasoning.Tests --filter CliAgentSmokeTests
+MAPCUE_AGENT_SMOKE=container MAPCUE_AGENT_IMAGE=<obraz z claude> ANTHROPIC_API_KEY=… dotnet test tests/MapCue.Adapters.Reasoning.Tests --filter CliAgentSmokeTests
+```
 
 ## TapCue i `mapcue doctor`
 

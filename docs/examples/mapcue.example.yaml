@@ -26,12 +26,29 @@ budgets:
   observeTimeout: 20s
 
 agent:
-  runtime: container     # `local` additionally needs allowLocalExecution: true
+  runtime: container     # `local` additionally needs allowLocalExecution: true; no fallback between runtimes (ADR-0004)
   allowLocalExecution: false
-  sendScreenshots: false
+  sendScreenshots: false # true is refused until screenshot redaction exists (P1)
   maxCalls: 100
   maxTokens: 1000000
   maxCostUsd: 5
+  provider: claude       # agent CLI (`claude -p`); the only provider implemented in STEP-04
+  containerEngine: docker
+  # containerImage: registry.example/mapcue-agent@sha256:<digest>   # required for the container runtime; no default
+  # containerNetwork: llm-egress                                     # optional; egress restriction is the network's job
+  # model: <model id>                                                # optional; the CLI default otherwise
+  timeout: 180s          # hard timeout per call; the process tree (and container) is killed
+  # apiKey: secret://env/ANTHROPIC_API_KEY                           # reference only, passed to the agent by name
+
+# Operator risk rules (STEP-04): matching elements get at least this risk class; rules never lower a risk.
+policy:
+  riskRules:
+    - name: blik
+      riskClass: financial
+      resourceId: com.example.mapcue.demo:id/blik
+    - name: admin-tools
+      riskClass: destructive
+      resourceIdPattern: "^com\\.example\\.mapcue\\.demo:id/admin_"
 
 profiles:
   - profileId: basic

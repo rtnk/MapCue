@@ -139,6 +139,12 @@ public enum BlockedReasonCode
     AppLeft,
     Crash,
     BudgetForTask,
+
+    /// <summary>The reasoner could not be reached (container down, CLI missing, timeout). Never falls back to the host (ADR-0004).</summary>
+    ReasonerUnavailable,
+
+    /// <summary>The reasoner budget (calls, tokens or cost) is spent (architecture §10.2).</summary>
+    ReasonerBudgetExhausted,
 }
 
 /// <summary>What an evidence row points to.</summary>

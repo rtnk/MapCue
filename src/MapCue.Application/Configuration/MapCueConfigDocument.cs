@@ -20,6 +20,9 @@ public sealed class MapCueConfigDocument
 
     /// <summary>Bound from the <c>tapcue</c> key (STEP-02).</summary>
     public TapcueDocument? Tapcue { get; set; }
+
+    /// <summary>Operator policy rules (STEP-04).</summary>
+    public PolicyDocument? Policy { get; set; }
 }
 
 public sealed class AllowlistDocument
@@ -69,6 +72,40 @@ public sealed class AgentDocument
     public long? MaxTokens { get; set; }
 
     public decimal? MaxCostUsd { get; set; }
+
+    public string? Provider { get; set; }
+
+    public string? Executable { get; set; }
+
+    public string? ContainerEngine { get; set; }
+
+    public string? ContainerImage { get; set; }
+
+    public string? ContainerNetwork { get; set; }
+
+    public string? Model { get; set; }
+
+    public string? Timeout { get; set; }
+
+    public string? ApiKey { get; set; }
+}
+
+public sealed class PolicyDocument
+{
+    public List<RiskRuleDocument>? RiskRules { get; set; }
+}
+
+public sealed class RiskRuleDocument
+{
+    public string? Name { get; set; }
+
+    public string? RiskClass { get; set; }
+
+    public string? ResourceId { get; set; }
+
+    public string? ResourceIdPattern { get; set; }
+
+    public string? LabelPattern { get; set; }
 }
 
 public sealed class ProfileDocument

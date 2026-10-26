@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "mapcue.agent-exploration-response/1",
+  "requestId": "{{requestId}}",
+  "snapshotHash": "{{snapshotHash}}",
+  "interpretation": { "proposedScreenName": "Profile", "stateKind": "form", "sameAsStateId": null, "confidence": 0.8 },
+  "facts": [
+    { "claim": "Form with a user name field and a save button", "elementRefs": ["{{ref:app:id/username}}", "{{ref:app:id/save}}"], "level": "observed" }
+  ],
+  "hypotheses": [
+    { "claim": "Investments are visible only with capability investments", "kind": "guard", "guard": { "all": [{ "capability": "investments" }] }, "level": "inferred", "confidence": 0.4 }
+  ],
+  "actionCandidates": [
+    { "candidateId": "c1", "elementRef": "{{ref:app:id/back}}", "actionType": "tap", "direction": null, "input": null, "intent": "Return to the previous screen", "riskClass": "navigational", "expectedOutcome": "Home", "confidence": 0.9 },
+    { "candidateId": "c2", "elementRef": "{{ref:Help}}", "actionType": "tap", "direction": null, "input": null, "intent": "Open help", "riskClass": "navigational", "expectedOutcome": null, "confidence": 0.7 },
+    { "candidateId": "c3", "elementRef": "{{ref:app:id/items}}", "actionType": "scroll", "direction": "down", "input": null, "intent": "Reveal more items", "riskClass": "safe", "expectedOutcome": null, "confidence": 0.6 },
+    { "candidateId": "c4", "elementRef": null, "actionType": "back", "direction": null, "input": null, "intent": "Go back", "riskClass": "safe", "expectedOutcome": null, "confidence": 0.9 }
+  ],
+  "warnings": []
+}

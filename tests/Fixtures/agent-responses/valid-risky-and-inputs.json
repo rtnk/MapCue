@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "mapcue.agent-exploration-response/1",
+  "requestId": "{{requestId}}",
+  "snapshotHash": "{{snapshotHash}}",
+  "interpretation": { "proposedScreenName": "Profile", "stateKind": null, "sameAsStateId": null, "confidence": 0.6 },
+  "facts": [],
+  "hypotheses": [],
+  "actionCandidates": [
+    { "candidateId": "c1", "elementRef": "{{ref:app:id/delete_account}}", "actionType": "tap", "direction": null, "input": null, "intent": "Delete the account", "riskClass": "destructive", "expectedOutcome": null, "confidence": 0.9 },
+    { "candidateId": "c2", "elementRef": "{{ref:app:id/transfer}}", "actionType": "tap", "direction": null, "input": null, "intent": "Open the transfer screen", "riskClass": "navigational", "expectedOutcome": null, "confidence": 0.8 },
+    { "candidateId": "c3", "elementRef": "{{ref:app:id/username}}", "actionType": "inputText", "direction": null, "input": { "valueRef": "profile.inputs.username" }, "intent": "Fill in the user name", "riskClass": "stateChanging", "expectedOutcome": null, "confidence": 0.8 },
+    { "candidateId": "c4", "elementRef": "{{ref:app:id/nickname}}", "actionType": "inputText", "direction": null, "input": { "generator": "name" }, "intent": "Fill in a nickname", "riskClass": "safe", "expectedOutcome": null, "confidence": 0.5 },
+    { "candidateId": "c5", "elementRef": "{{ref:app:id/save}}", "actionType": "tap", "direction": null, "input": null, "intent": "Save the form", "riskClass": "navigational", "expectedOutcome": null, "confidence": 0.5 },
+    { "candidateId": "c6", "elementRef": "{{ref:app:id/share}}", "actionType": "tap", "direction": null, "input": null, "intent": "Share the profile", "riskClass": "safe", "expectedOutcome": null, "confidence": 0.5 }
+  ],
+  "warnings": []
+}

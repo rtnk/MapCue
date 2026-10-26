@@ -1,2 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <!-- schemas/ is the source of truth of the contracts (architecture §3.1); embedded so MapCue validates against exactly these files. -->
+    <EmbeddedResource Include="..\..\schemas\*.schema.json" LogicalName="MapCue.Schemas.%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

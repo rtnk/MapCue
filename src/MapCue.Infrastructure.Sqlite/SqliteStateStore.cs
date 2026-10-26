@@ -145,5 +145,7 @@ public sealed class SqliteStateStore : IStateStore, IAsyncDisposable, IDisposabl
         public IFrontierRepository Frontier { get; } = new SqliteFrontierRepository(connection, transaction);
 
         public IEventOutbox Events { get; } = new SqliteEventOutbox(connection, transaction);
+
+        public IAgentCallRepository AgentCalls { get; } = new SqliteAgentCallRepository(connection, transaction);
     }
 }

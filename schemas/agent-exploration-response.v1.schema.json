@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mapcue.dev/schemas/agent-exploration-response.v1.schema.json",
+  "title": "MapCue agent exploration response (mapcue.agent-exploration-response/1)",
+  "description": "What a reasoner answers (architecture §9.2). Untrusted: MapCue validates it in this order: this schema, stale check (requestId, snapshotHash), semantics (element refs, policy, input references, forbidden content), risk, and only then maps accepted candidates to typed device actions (§9.3). Free text never reaches execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "requestId", "snapshotHash", "interpretation", "facts", "hypotheses", "actionCandidates", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": "mapcue.agent-exploration-response/1" },
+    "requestId": { "type": "string", "pattern": "^req_[A-Za-z0-9_-]{1,64}$" },
+    "snapshotHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "interpretation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposedScreenName", "stateKind", "sameAsStateId", "confidence"],
+      "properties": {
+        "proposedScreenName": { "anyOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] },
+        "stateKind": { "anyOf": [{ "enum": ["default", "loading", "empty", "error", "modal", "menu", "form", "keyboard", "unknown"] }, { "type": "null" }] },
+        "sameAsStateId": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" }, { "type": "null" }] },
+        "confidence": { "$ref": "#/$defs/confidence" }
+      }
+    },
+    "facts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "elementRefs", "level"],
+        "properties": {
+          "claim": { "$ref": "#/$defs/text" },
+          "elementRefs": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/elementRef" } },
+          "level": { "const": "observed" }
+        }
+      }
+    },
+    "hypotheses": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "kind", "guard", "level", "confidence"],
+        "properties": {
+          "claim": { "$ref": "#/$defs/text" },
+          "kind": { "enum": ["guard", "navigation", "dataDependency", "other"] },
+          "guard": {
+            "anyOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["all"],
+                "properties": {
+                  "all": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["capability"],
+                      "properties": {
+                        "capability": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$" }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "level": { "const": "inferred" },
+          "confidence": { "$ref": "#/$defs/confidence" }
+        }
+      }
+    },
+    "actionCandidates": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidateId", "elementRef", "actionType", "direction", "input", "intent", "riskClass", "expectedOutcome", "confidence"],
+        "properties": {
+          "candidateId": { "type": "string", "pattern": "^c[1-9][0-9]{0,3}$" },
+          "elementRef": { "anyOf": [{ "$ref": "#/$defs/elementRef" }, { "type": "null" }] },
+          "actionType": { "enum": ["tap", "back", "scroll", "swipe", "inputText", "hideKeyboard", "longPress"] },
+          "direction": { "anyOf": [{ "enum": ["down", "up", "left", "right"] }, { "type": "null" }] },
+          "input": {
+            "description": "Only for inputText: a reference to a profile input or a deterministic generator. Literal values are not allowed.",
+            "anyOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["valueRef"],
+                "properties": { "valueRef": { "type": "string", "pattern": "^profile\\.inputs\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" } }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["generator"],
+                "properties": { "generator": { "enum": ["email", "name", "text", "number"] } }
+              }
+            ]
+          },
+          "intent": { "$ref": "#/$defs/text" },
+          "riskClass": { "enum": ["safe", "navigational", "stateChanging", "destructive", "financial", "communication", "accountChange", "external", "unknown"] },
+          "expectedOutcome": { "anyOf": [{ "$ref": "#/$defs/text" }, { "type": "null" }] },
+          "confidence": { "$ref": "#/$defs/confidence" }
+        }
+      }
+    },
+    "warnings": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/text" } }
+  },
+  "$defs": {
+    "elementRef": { "type": "string", "pattern": "^e[1-9][0-9]{0,4}$" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^\\u0000-\\u001f\\u007f]*$" },
+    "text": { "type": "string", "maxLength": 300, "pattern": "^[^\\u0000-\\u001f\\u007f]*$" }
+  }
+}

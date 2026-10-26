@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mapcue.dev/schemas/agent-exploration-request.v1.schema.json",
+  "title": "MapCue agent exploration request (mapcue.agent-exploration-request/1)",
+  "description": "What MapCue sends to a reasoner (architecture §9.1, ADR-0004): a redacted, normalized snapshot addressed by element refs, graph hints and the policy the answer is validated against. Built only by MapCue; never contains secrets, input values or screenshots.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "requestId", "promptVersion", "task", "snapshot", "context", "graphHints", "policy", "limits", "repair", "instructions"],
+  "properties": {
+    "schemaVersion": { "const": "mapcue.agent-exploration-request/1" },
+    "requestId": { "$ref": "#/$defs/requestId" },
+    "promptVersion": { "type": "string", "pattern": "^mapcue\\.agent-prompt/[1-9][0-9]*$" },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskId", "attemptId", "type"],
+      "properties": {
+        "taskId": { "$ref": "#/$defs/id" },
+        "attemptId": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "type": { "enum": ["AnalyzeState"] }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshotHash", "platform", "stateKind", "elements", "omittedElements", "screenshot"],
+      "properties": {
+        "snapshotHash": { "$ref": "#/$defs/sha256" },
+        "platform": { "enum": ["android", "ios"] },
+        "stateKind": { "enum": ["default", "loading", "empty", "error", "modal", "menu", "form", "keyboard", "unknown"] },
+        "elements": {
+          "type": "array",
+          "maxItems": 400,
+          "items": { "$ref": "#/$defs/element" }
+        },
+        "omittedElements": { "type": "integer", "minimum": 0 },
+        "screenshot": { "type": "null" }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileAlias", "locale", "capabilities"],
+      "properties": {
+        "profileAlias": { "$ref": "#/$defs/id" },
+        "locale": { "type": "string", "maxLength": 35, "pattern": "^[A-Za-z0-9_-]*$" },
+        "capabilities": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "graphHints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateStates", "knownActionKeys"],
+      "properties": {
+        "candidateStates": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["stateId", "displayName", "similarity"],
+            "properties": {
+              "stateId": { "$ref": "#/$defs/id" },
+              "displayName": { "anyOf": [{ "$ref": "#/$defs/shortText" }, { "type": "null" }] },
+              "similarity": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "knownActionKeys": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/sha256" } }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedActionTypes", "allowedRiskClasses", "forbiddenRiskClasses", "inputRefs", "generators"],
+      "properties": {
+        "allowedActionTypes": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/actionType" } },
+        "allowedRiskClasses": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/riskClass" } },
+        "forbiddenRiskClasses": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/riskClass" } },
+        "inputRefs": { "type": "array", "uniqueItems": true, "maxItems": 64, "items": { "$ref": "#/$defs/inputRef" } },
+        "generators": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/generator" } }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxCandidates"],
+      "properties": {
+        "maxCandidates": { "type": "integer", "minimum": 1, "maximum": 50 }
+      }
+    },
+    "repair": {
+      "description": "Null on the first call. On the single format repair (CAP-0068) it lists what was wrong with the previous answer.",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["previousErrors"],
+          "properties": {
+            "previousErrors": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "type": "string", "maxLength": 300 } }
+          }
+        }
+      ]
+    },
+    "instructions": { "type": "string", "maxLength": 4000 }
+  },
+  "$defs": {
+    "requestId": { "type": "string", "pattern": "^req_[A-Za-z0-9_-]{1,64}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "elementRef": { "type": "string", "pattern": "^e[1-9][0-9]{0,4}$" },
+    "shortText": { "type": "string", "maxLength": 200, "pattern": "^[^\\u0000-\\u001f\\u007f]*$" },
+    "actionType": { "enum": ["tap", "back", "scroll", "swipe", "inputText", "hideKeyboard", "longPress"] },
+    "riskClass": { "enum": ["safe", "navigational", "stateChanging", "destructive", "financial", "communication", "accountChange", "external", "unknown"] },
+    "inputRef": { "type": "string", "pattern": "^profile\\.inputs\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+    "generator": { "enum": ["email", "name", "text", "number"] },
+    "element": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "role", "label", "resourceId", "flags", "depth", "interactive", "listRow"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/elementRef" },
+        "role": { "type": "string", "maxLength": 32, "pattern": "^[A-Za-z]+$" },
+        "label": { "anyOf": [{ "$ref": "#/$defs/shortText" }, { "type": "null" }] },
+        "resourceId": { "anyOf": [{ "$ref": "#/$defs/shortText" }, { "type": "null" }] },
+        "flags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["clickable", "enabled", "scrollable", "checked", "focused", "selected", "editable"] }
+        },
+        "depth": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "interactive": { "type": "boolean" },
+        "listRow": { "type": "boolean" }
+      }
+    }
+  }
+}

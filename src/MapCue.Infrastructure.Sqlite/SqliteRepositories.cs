@@ -589,3 +589,80 @@ internal sealed class SqliteEventOutbox(SqliteConnection connection, SqliteTrans
 
     public Task<long> LastSeqAsync(CancellationToken ct) => ScalarAsync("SELECT COALESCE(MAX(seq), 0) FROM events", ct);
 }
+
+internal sealed class SqliteAgentCallRepository(SqliteConnection connection, SqliteTransaction transaction) : SqliteRepository(connection, transaction), IAgentCallRepository
+{
+    private const string Columns = "call_id, request_id, call_number, context_id, state_id, task_id, attempt_id, reasoner, prompt_version, snapshot_hash, request_sha256, response_sha256, status, errors_json, decisions_json, input_tokens, output_tokens, cost_usd, duration_ms, created_at";
+
+    public async Task<bool> InsertIfAbsentAsync(AgentCall agentCall, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(agentCall);
+        return await ExecuteAsync(
+            $"INSERT INTO agent_calls ({Columns}) VALUES ($id, $req, $n, $ctx, $state, $task, $attempt, $reasoner, $prompt, $snap, $rsha, $asha, $status, $errors, $decisions, $in, $out, $cost, $ms, $at) ON CONFLICT DO NOTHING",
+            ct,
+            ("$id", agentCall.CallId),
+            ("$req", agentCall.RequestId),
+            ("$n", agentCall.CallNumber),
+            ("$ctx", agentCall.ContextId),
+            ("$state", agentCall.StateId),
+            ("$task", agentCall.TaskId),
+            ("$attempt", agentCall.AttemptId),
+            ("$reasoner", agentCall.Reasoner),
+            ("$prompt", agentCall.PromptVersion),
+            ("$snap", agentCall.SnapshotHash),
+            ("$rsha", agentCall.RequestSha256),
+            ("$asha", agentCall.ResponseSha256),
+            ("$status", agentCall.Status.ToString()),
+            ("$errors", Db.Json(agentCall.Errors)),
+            ("$decisions", Db.Json(agentCall.Decisions)),
+            ("$in", agentCall.InputTokens),
+            ("$out", agentCall.OutputTokens),
+            ("$cost", agentCall.CostUsd?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            ("$ms", agentCall.DurationMs),
+            ("$at", Db.Time(agentCall.CreatedAt))) > 0;
+    }
+
+    public async Task<IReadOnlyList<AgentCall>> ListAsync(string? stateId, CancellationToken ct) =>
+        await QueryAsync(
+            $"SELECT {Columns} FROM agent_calls WHERE $state IS NULL OR state_id = $state ORDER BY seq",
+            Map,
+            ct,
+            ("$state", stateId));
+
+    public async Task<AgentUsageTotals> GetUsageTotalsAsync(CancellationToken ct)
+    {
+        var rows = await QueryAsync(
+            // Calls that were never sent: budget stops and requests refused before sending (Rejected without an answer).
+            "SELECT input_tokens, output_tokens, cost_usd FROM agent_calls WHERE status <> 'BudgetExhausted' AND NOT (status = 'Rejected' AND response_sha256 IS NULL)",
+            r => (Tokens: (r.IsDBNull(0) ? 0 : r.GetInt64(0)) + (r.IsDBNull(1) ? 0 : r.GetInt64(1)), Cost: Db.ReadStringOrNull(r, 2)),
+            ct);
+        return new AgentUsageTotals(
+            rows.Count,
+            rows.Sum(r => r.Tokens),
+            rows.Where(r => r.Cost is not null).Sum(r => decimal.Parse(r.Cost!, System.Globalization.CultureInfo.InvariantCulture)),
+            rows.Count(r => r.Cost is null));
+    }
+
+    private static AgentCall Map(SqliteDataReader r) =>
+        new(
+            r.GetString(0),
+            r.GetString(1),
+            r.GetInt32(2),
+            r.GetString(3),
+            Db.ReadStringOrNull(r, 4),
+            Db.ReadStringOrNull(r, 5),
+            Db.ReadStringOrNull(r, 6),
+            r.GetString(7),
+            r.GetString(8),
+            r.GetString(9),
+            r.GetString(10),
+            Db.ReadStringOrNull(r, 11),
+            Db.ReadEnum<AgentCallStatus>(r, 12),
+            Db.ReadJson<List<string>>(r, 13),
+            Db.ReadJson<List<AgentCandidateDecision>>(r, 14),
+            r.IsDBNull(15) ? null : r.GetInt64(15),
+            r.IsDBNull(16) ? null : r.GetInt64(16),
+            Db.ReadStringOrNull(r, 17) is { } cost ? decimal.Parse(cost, System.Globalization.CultureInfo.InvariantCulture) : null,
+            r.GetInt64(18),
+            Db.ReadTime(r, 19));
+}

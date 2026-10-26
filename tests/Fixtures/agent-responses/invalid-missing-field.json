@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "mapcue.agent-exploration-response/1",
+  "requestId": "{{requestId}}",
+  "snapshotHash": "{{snapshotHash}}",
+  "interpretation": { "proposedScreenName": "Profile", "stateKind": null, "sameAsStateId": null, "confidence": 0.6 },
+  "facts": [],
+  "actionCandidates": [],
+  "warnings": []
+}

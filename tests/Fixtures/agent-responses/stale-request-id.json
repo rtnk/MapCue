@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "mapcue.agent-exploration-response/1",
+  "requestId": "req_from_an_older_request",
+  "snapshotHash": "{{snapshotHash}}",
+  "interpretation": { "proposedScreenName": "Profile", "stateKind": null, "sameAsStateId": null, "confidence": 0.6 },
+  "facts": [],
+  "hypotheses": [],
+  "actionCandidates": [
+    { "candidateId": "c1", "elementRef": "{{ref:app:id/back}}", "actionType": "tap", "direction": null, "input": null, "intent": "Go back", "riskClass": "navigational", "expectedOutcome": null, "confidence": 0.9 }
+  ],
+  "warnings": []
+}

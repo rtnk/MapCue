@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "mapcue.agent-exploration-response/1",
+  "requestId": "{{requestId}}",
+  "snapshotHash": "{{snapshotHash}}",
+  "interpretation": { "proposedScreenName": "Login", "stateKind": "form", "sameAsStateId": null, "confidence": 0.6 },
+  "facts": [],
+  "hypotheses": [],
+  "actionCandidates": [
+    { "candidateId": "c1", "elementRef": "{{ref:app:id/username}}", "actionType": "inputText", "direction": null, "input": { "valueRef": "profile.inputs.password" }, "intent": "Type the password", "riskClass": "stateChanging", "expectedOutcome": null, "confidence": 0.8 },
+    { "candidateId": "c2", "elementRef": "{{ref:app:id/save}}", "actionType": "tap", "direction": null, "input": { "generator": "text" }, "intent": "Save", "riskClass": "stateChanging", "expectedOutcome": null, "confidence": 0.8 }
+  ],
+  "warnings": []
+}

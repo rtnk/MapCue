@@ -21,3 +21,11 @@ LLM ma interpretować ekran i proponować akcje, ale nie sterować. TOOL-006 (ga
 
 - MVP może działać całkowicie bez LLM (RuleBased), a LLM jest ulepszeniem jakości.
 - Koszt: utrzymanie schematów i adapterów CLI per provider. Zmiany flag CLI wymagają testów kontraktowych na nagranych wyjściach (CAP-0090).
+
+## Implementacja w STEP-04
+
+- Port: `IExplorationReasoner { string Name; InterpretAsync(request) → ReasonerResult(Status, RawResponse, Usage, Detail) }`. Reasoner zwraca **surowy tekst**; parsowanie i walidacja należą wyłącznie do MapCue (inaczej dodatkowe pola i zduplikowane klucze byłyby niewidoczne).
+- Typy C# (`MapCue.Contracts.Agent`) są testowane na schematach: serializacja żądania przechodzi schemat żądania, golden odpowiedzi i mutacje dają te same werdykty w walidatorze MapCue i w JsonSchema.Net (tylko testy).
+- Flagi CLI zmierzone na Claude Code 2.1.310: `--json-schema` nie akceptuje `$schema` 2020-12, więc CLI dostaje kopię schematu bez `$schema`/`$id` (słowa kluczowe są zgodne z draft-07); MapCue waliduje oryginałem. `--bare` (tylko `ANTHROPIC_API_KEY`) jest używane w kontenerze i gdy skonfigurowano `agent.apiKey`. Codex (`codex exec`) nie jest zaimplementowany (`agent.provider` przyjmuje tylko `claude`).
+- Izolacja: żądanie przez stdin, bez montowania plików (ostrzej niż „plik ro”). `agent.containerImage` nie ma wartości domyślnej. Brak obrazu, silnika, niezerowy kod wyjścia, timeout: `Unavailable`/`TimedOut` i `Blocked(ReasonerUnavailable)`; test z prawdziwymi procesami potwierdza, że agent CLI na hoście nie jest uruchamiany.
+- Smoke: lokalnie (`MAPCUE_AGENT_SMOKE=local`) PASS; w kontenerze NOT RUN (brak demona Dockera w środowisku etapu).

@@ -12,8 +12,8 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 | 01 | Solution foundation | P0 | 00 | zmergowany (PR #3) |
 | 02 | TapCue adapter | P0 | 01 | zmergowany (PR #4) |
 | 02B | Demo/fixture app (MAUI) **[propozycja, wymaga zgody]** | P0 | 01 (równolegle z 03/04 po 02) | nie rozpoczęty |
-| 03 | Graph & persistence | P0 | 01 | PR otwarty (czeka na review i merge) |
-| 04 | Agent interpretation | P0 | 01, 03 | nie rozpoczęty |
+| 03 | Graph & persistence | P0 | 01 | zmergowany (PR #5) |
+| 04 | Agent interpretation | P0 | 01, 03 | PR otwarty (czeka na review i merge) |
 | 05 | Vertical slice crawler | P0 (MVP) | 02, 02B, 03, 04 | nie rozpoczęty |
 | 06 | Frontier scheduler | P0 (MVP) | 05 | nie rozpoczęty |
 | 07 | Profiles & variants | P0 (MVP) | 06 | nie rozpoczęty |
@@ -152,8 +152,8 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 | R-02 | brak timeoutu i anulowania w MCP (G-01) | pewne / średni | timeout + kill + `OutcomeUnknown` | 02, 06 |
 | R-03 | kolizja sesji MCP i CLI `hierarchy` na jednym urządzeniu | **zmierzone w 02:** `hierarchy` bez kolizji, `test` zrywa driver MCP / średni | adapter zamyka sesję MCP przed `test`, `DriverLost` restartuje sesję; tryb `exclusive` dostępny | 02, 08 |
 | R-04 | niestabilny fingerprint (MAUI, dane dynamiczne, brak `resourceId`) | średnie / wysoki | property tests (STEP-03: generowane ekrany i nagrania Androida), `fingerprintVersion` (= 1, przypięte hashe nagrań), metryka słabych kluczy (`WeakKeyCount`); `screenHints` i kalibracja progów na danych 02B w STEP-05 | 03, 05 |
-| R-05 | jakość i koszt LLM | średnie / średni | RuleBased baseline, budżety, analiza raz na stan | 04 |
-| R-06 | błędna klasyfikacja akcji niszczącej | niskie / krytyczny | deny-by-default, `max(agent, reguły)`, tylko profile testowe, zgody per kategoria | 04, 07 |
+| R-05 | jakość i koszt LLM | średnie / średni | RuleBased baseline, budżety, analiza raz na stan. **STEP-04:** `RuleBasedReasoner` (offline), budżety `maxCalls/maxTokens/maxCostUsd` sprawdzane przed każdym wywołaniem (brak raportu tokenów = estymata), jedna naprawa formatu; smoke `claude -p` lokalnie: 1 wywołanie, ~6,8 tys. tokenów, ~0,04 USD na ekran | 04 |
+| R-06 | błędna klasyfikacja akcji niszczącej | niskie / krytyczny | deny-by-default, `max(agent, reguły)`, tylko profile testowe, zgody per kategoria. **STEP-04:** słowa kluczowe EN/PL/DE/FR/ES/IT/PT (+ słowa z `resource-id`), reguły operatora tylko podnoszą ryzyko, `stateChanging`/`unknown` tylko przy `disposable`, klasy wysokiego ryzyka wymagają zgody kategorii i `disposable`, typ akcji spoza allowlisty zawsze `Rejected`; zgody operatora (`resume --approve`) w STEP-09 | 04, 07 |
 | R-07 | brak automatyzacji czytników ekranu (G-05) | pewne / średni | `unsupported` + protokół manualny | 08 |
 | R-08 | Linux nieoficjalny dla TapCue | średnie / niski | macOS arm64 jako referencja; Android na Linuksie best effort | 02, 12 |
 | R-09 | polityka sieci środowiska agenta blokuje narzędzia (np. `dl.google.com`) | wystąpiło / średni | archiwa Release, CI GitHub, jawne NOT RUN | każdy |
@@ -175,7 +175,7 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 ## Decyzje do potwierdzenia przez Roberta
 
 1. Włączenie **STEP-02B** (demo app MAUI w tym repo). Domyślnie: tak.
-2. Pierwszy realny provider LLM dla `CliAgentReasoner`: domyślnie Claude CLI (`claude -p`) w kontenerze, Codex jako drugi adapter.
+2. Pierwszy realny provider LLM dla `CliAgentReasoner`: domyślnie Claude CLI (`claude -p`) w kontenerze, Codex jako drugi adapter. **STEP-04:** zaimplementowany tylko `claude` (smoke lokalny PASS, kontener NOT RUN). Obraz kontenera agenta (`agent.containerImage`) wybiera operator; Codex nie jest zaimplementowany.
 3. Dostęp do runnera macOS dla smoke iOS (GitHub Actions `macos-26` albo host Roberta).
 4. Czy eksperyment z AppScreenMap (ADR-0005) jest wymagany przed STEP-03. Domyślnie: nie, opcjonalnie w STEP-05/10.
 5. Wysyłanie screenshotów do LLM: domyślnie wyłączone.
