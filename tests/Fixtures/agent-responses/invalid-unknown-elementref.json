@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "mapcue.agent-exploration-response/1",
+  "requestId": "{{requestId}}",
+  "snapshotHash": "{{snapshotHash}}",
+  "interpretation": { "proposedScreenName": null, "stateKind": null, "sameAsStateId": null, "confidence": 0.3 },
+  "facts": [],
+  "hypotheses": [],
+  "actionCandidates": [
+    { "candidateId": "c1", "elementRef": "e999", "actionType": "tap", "direction": null, "input": null, "intent": "Tap something", "riskClass": "navigational", "expectedOutcome": null, "confidence": 0.5 },
+    { "candidateId": "c2", "elementRef": "{{ref:app:id/toolbar_title}}", "actionType": "tap", "direction": null, "input": null, "intent": "Tap the title", "riskClass": "navigational", "expectedOutcome": null, "confidence": 0.5 }
+  ],
+  "warnings": []
+}

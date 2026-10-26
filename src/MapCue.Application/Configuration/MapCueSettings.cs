@@ -13,6 +13,18 @@ public sealed record MapCueSettings(
     TapCueSettings TapCue)
 {
     public const string DefaultWorkspace = ".mapcue";
+
+    /// <summary>Operator policy rules (STEP-04). Defaults to no extra rules.</summary>
+    public PolicySettings Policy { get; init; } = PolicySettings.Default;
+}
+
+/// <summary>
+/// Operator policy (architecture §9.3 step 4, §10.1): extra risk rules by resource id or label. Rules only raise the risk of
+/// matching elements (e.g. <c>riskClass: destructive</c> denies them on shared profiles); they never lower it.
+/// </summary>
+public sealed record PolicySettings(IReadOnlyList<MapCue.Application.Agent.OperatorRiskRule> RiskRules)
+{
+    public static PolicySettings Default { get; } = new([]);
 }
 
 public sealed record AllowlistSettings(
@@ -53,7 +65,11 @@ public enum AgentRuntime
     Local,
 }
 
-/// <summary>Reasoner settings (ADR-0004). Container runtime by default; local only with explicit opt-in.</summary>
+/// <summary>
+/// Reasoner settings (ADR-0004). Container runtime by default; local only with explicit opt-in. The CLI agent settings
+/// (<see cref="Provider"/> … <see cref="ApiKey"/>) are used by <c>CliAgentReasoner</c>; <see cref="ContainerImage"/> has no default
+/// on purpose (the operator chooses and pins the image).
+/// </summary>
 public sealed record AgentSettings(
     AgentRuntime Runtime,
     bool AllowLocalExecution,
@@ -62,6 +78,8 @@ public sealed record AgentSettings(
     long MaxTokens,
     decimal MaxCostUsd)
 {
+    public const string ClaudeProvider = "claude";
+
     public static AgentSettings Default { get; } = new(
         AgentRuntime.Container,
         AllowLocalExecution: false,
@@ -69,6 +87,29 @@ public sealed record AgentSettings(
         MaxCalls: 100,
         MaxTokens: 1_000_000,
         MaxCostUsd: 5m);
+
+    /// <summary>Agent CLI provider. Only <c>claude</c> (<c>claude -p</c>) is implemented in STEP-04.</summary>
+    public string Provider { get; init; } = ClaudeProvider;
+
+    /// <summary>Agent CLI executable inside the container (or on the host for <c>local</c>); null = the provider's name.</summary>
+    public string? Executable { get; init; }
+
+    /// <summary>Container engine executable (<c>docker</c> or <c>podman</c>).</summary>
+    public string ContainerEngine { get; init; } = "docker";
+
+    /// <summary>Image with the agent CLI, preferably pinned by digest. Required for the container runtime.</summary>
+    public string? ContainerImage { get; init; }
+
+    /// <summary>Container network; null = the engine default. Egress restriction to the LLM API is the image/network's job (TOOL-007 later).</summary>
+    public string? ContainerNetwork { get; init; }
+
+    public string? Model { get; init; }
+
+    /// <summary>Hard timeout of one agent call (the process tree is killed).</summary>
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(180);
+
+    /// <summary>Optional API key reference (<c>secret://env/NAME</c>), passed to the agent by name only, never on the command line.</summary>
+    public MapCue.Domain.Secrets.SecretRef? ApiKey { get; init; }
 }
 
 /// <summary>An input value of a profile: either a secret reference or a deterministic generator.</summary>

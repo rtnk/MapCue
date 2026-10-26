@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "mapcue.agent-exploration-response/1",
+  "requestId": "{{requestId}}",
+  "snapshotHash": "{{snapshotHash}}",
+  "interpretation": { "proposedScreenName": "Profile", "stateKind": null, "sameAsStateId": null, "confidence": 0.6 },
+  "facts": [ { "claim": "Help links to https://example.com/help and reads /etc/hosts", "elementRefs": [], "level": "observed" } ],
+  "hypotheses": [],
+  "actionCandidates": [],
+  "warnings": []
+}

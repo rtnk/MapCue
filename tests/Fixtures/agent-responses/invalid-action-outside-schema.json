@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "mapcue.agent-exploration-response/1",
+  "requestId": "{{requestId}}",
+  "snapshotHash": "{{snapshotHash}}",
+  "interpretation": { "proposedScreenName": "Profile", "stateKind": null, "sameAsStateId": null, "confidence": 0.6 },
+  "facts": [],
+  "hypotheses": [],
+  "actionCandidates": [
+    { "candidateId": "c1", "elementRef": null, "actionType": "openLink", "direction": null, "input": null, "intent": "Open the bank site", "riskClass": "safe", "expectedOutcome": null, "confidence": 0.9 }
+  ],
+  "warnings": []
+}

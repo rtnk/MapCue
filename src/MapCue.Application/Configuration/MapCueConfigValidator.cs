@@ -37,10 +37,11 @@ public static partial class MapCueConfigValidator
         var agent = ValidateAgent(document.Agent, errors);
         var profiles = ValidateProfiles(document.Profiles, allowlist, errors);
         var tapCue = ValidateTapCue(document.Tapcue, errors);
+        var policy = ValidatePolicy(document.Policy, errors);
 
         return errors.Count > 0
             ? new(null, errors)
-            : new(new MapCueSettings(workspace, allowlist, budgets, agent, profiles, tapCue), errors);
+            : new(new MapCueSettings(workspace, allowlist, budgets, agent, profiles, tapCue) { Policy = policy }, errors);
     }
 
     private static AllowlistSettings ValidateAllowlist(AllowlistDocument? doc, List<ConfigError> errors)
@@ -147,13 +148,128 @@ public static partial class MapCueConfigValidator
             errors.Add(new(ConfigErrorCodes.LocalAgentNotAllowed, "agent.runtime", "'local' requires agent.allowLocalExecution: true (ADR-0004); there is no automatic fallback to the host."));
         }
 
+        if (doc.SendScreenshots == true)
+        {
+            // Screenshots need redaction (P1, architecture §10.3); version 1 of the request has no screenshot field.
+            errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.sendScreenshots", "Sending screenshots to the reasoner is not supported yet (requires screenshot redaction, P1)."));
+        }
+
+        var provider = doc.Provider ?? d.Provider;
+        if (provider != AgentSettings.ClaudeProvider)
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.provider", $"Must be '{AgentSettings.ClaudeProvider}' (other providers are not implemented yet)."));
+        }
+
+        var engine = doc.ContainerEngine ?? d.ContainerEngine;
+        if (!ExecutableName(engine))
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.containerEngine", "Must be an executable name or path without control characters or spaces."));
+        }
+
+        if (doc.Executable is not null && !ExecutableName(doc.Executable))
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.executable", "Must be an executable name or path without control characters or spaces."));
+        }
+
+        if (doc.ContainerImage is not null && !ContainerImagePattern().IsMatch(doc.ContainerImage))
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.containerImage", "Must be an image reference (registry/name:tag or name@sha256:digest)."));
+        }
+
+        if (doc.ContainerNetwork is not null && !AllowlistEntryPattern().IsMatch(doc.ContainerNetwork))
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.containerNetwork", "Must be a network name."));
+        }
+
+        if (doc.Model is not null && !AllowlistEntryPattern().IsMatch(doc.Model))
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.model", "Must be a model identifier."));
+        }
+
+        SecretRef? apiKey = null;
+        if (doc.ApiKey is not null && !SecretRef.TryParse(doc.ApiKey, out apiKey))
+        {
+            // Not echoed: it may be a pasted key.
+            errors.Add(new(ConfigErrorCodes.InvalidSecretRef, "agent.apiKey", "Must be a reference secret://env/NAME; literal keys are not allowed. The value is not shown."));
+        }
+
         return new AgentSettings(
             runtime,
             allowLocal,
             doc.SendScreenshots ?? d.SendScreenshots,
             Int(doc.MaxCalls, d.MaxCalls, 0, 10_000, "agent.maxCalls", errors),
             Long(doc.MaxTokens, d.MaxTokens, 0, 100_000_000, "agent.maxTokens", errors),
-            Decimal(doc.MaxCostUsd, d.MaxCostUsd, 0m, 1_000m, "agent.maxCostUsd", errors));
+            Decimal(doc.MaxCostUsd, d.MaxCostUsd, 0m, 1_000m, "agent.maxCostUsd", errors))
+        {
+            Provider = provider,
+            Executable = doc.Executable,
+            ContainerEngine = engine,
+            ContainerImage = doc.ContainerImage,
+            ContainerNetwork = doc.ContainerNetwork,
+            Model = doc.Model,
+            Timeout = Duration(doc.Timeout, d.Timeout, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(30), "agent.timeout", errors),
+            ApiKey = apiKey,
+        };
+    }
+
+    private static bool ExecutableName(string value) =>
+        value.Length is > 0 and <= 1024 && !value.Any(c => char.IsControl(c) || char.IsWhiteSpace(c));
+
+    private static PolicySettings ValidatePolicy(PolicyDocument? doc, List<ConfigError> errors)
+    {
+        if (doc?.RiskRules is null)
+        {
+            return PolicySettings.Default;
+        }
+
+        var rules = new List<MapCue.Application.Agent.OperatorRiskRule>();
+        for (var i = 0; i < doc.RiskRules.Count; i++)
+        {
+            var path = $"policy.riskRules[{i}]";
+            var rule = doc.RiskRules[i];
+            if (rule?.Name is null || !IdentifierPattern().IsMatch(rule.Name))
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidRiskRule, path + ".name", "Every rule needs a name (identifier)."));
+                continue;
+            }
+
+            var risk = Enum.GetValues<RiskClass>().Cast<RiskClass?>().FirstOrDefault(r => string.Equals(r!.Value.ToString(), rule.RiskClass, StringComparison.OrdinalIgnoreCase));
+            if (risk is null or RiskClass.Safe)
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidRiskRule, path + ".riskClass", "Must be a risk class above 'safe' (rules only raise the risk)."));
+                continue;
+            }
+
+            if (rule.ResourceId is null && rule.ResourceIdPattern is null && rule.LabelPattern is null)
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidRiskRule, path, "A rule needs resourceId, resourceIdPattern or labelPattern."));
+                continue;
+            }
+
+            var idPattern = RulePattern(rule.ResourceIdPattern, path + ".resourceIdPattern", errors);
+            var labelPattern = RulePattern(rule.LabelPattern, path + ".labelPattern", errors);
+            rules.Add(new(rule.Name, risk.Value, rule.ResourceId, idPattern, labelPattern));
+        }
+
+        return new PolicySettings(rules);
+    }
+
+    private static Regex? RulePattern(string? pattern, string path, List<ConfigError> errors)
+    {
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new Regex(pattern, RegexOptions.CultureInvariant | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100));
+        }
+        catch (ArgumentException)
+        {
+            errors.Add(new(ConfigErrorCodes.InvalidRiskRule, path, "Must be a valid regular expression."));
+            return null;
+        }
     }
 
     /// <summary>Validates the <c>tapcue</c> section; omitted keys use <see cref="TapCueSettings.Default"/>.</summary>
@@ -445,4 +561,7 @@ public static partial class MapCueConfigValidator
 
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$", RegexOptions.CultureInvariant)]
     private static partial Regex EnvironmentNamePattern();
+
+    [GeneratedRegex("^[a-z0-9][a-z0-9._/:-]{0,255}(@sha256:[0-9a-f]{64})?$", RegexOptions.CultureInvariant)]
+    private static partial Regex ContainerImagePattern();
 }

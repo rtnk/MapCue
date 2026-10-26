@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MapCue.Adapters.Reasoning\MapCue.Adapters.Reasoning.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Application\MapCue.Application.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Contracts\MapCue.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Domain\MapCue.Domain.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Sqlite\MapCue.Infrastructure.Sqlite.csproj" />
+    <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Fixtures\agent-responses\**" LinkBase="Fixtures\agent-responses" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The golden test checks that every fixture is referenced by its own source. -->
+    <None Include="GoldenResponseTests.cs" Link="GoldenResponseTests.cs.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -75,7 +75,7 @@ public class SqliteStoreTests
         Assert.Throws<InvalidOperationException>(() => SqliteMigrator.Parse([("0001_a.sql", ""), ("0003_c.sql", "")]));
         Assert.Throws<InvalidOperationException>(() => SqliteMigrator.Parse([("1_a.sql", "")]));
         Assert.Equal([1, 2], SqliteMigrator.Parse([("0002_b.sql", ""), ("0001_a.sql", "")]).Select(m => m.Version));
-        Assert.Equal(["graph_core", "edges_frontier_outbox"], SqliteMigrator.Embedded.Select(m => m.Name));
+        Assert.Equal(["graph_core", "edges_frontier_outbox", "agent_calls"], SqliteMigrator.Embedded.Select(m => m.Name));
     }
 
     [Fact]
@@ -254,6 +254,8 @@ public class SqliteStoreTests
         public IFrontierRepository Frontier => inner.Frontier;
 
         public IEventOutbox Events { get; } = new FaultyOutbox(inner.Events, failOnEvent);
+
+        public IAgentCallRepository AgentCalls => inner.AgentCalls;
     }
 
     private sealed class FaultyOutbox(IEventOutbox inner, string failOnEvent) : IEventOutbox

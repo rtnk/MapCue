@@ -20,6 +20,8 @@ public interface IUnitOfWork
     IFrontierRepository Frontier { get; }
 
     IEventOutbox Events { get; }
+
+    IAgentCallRepository AgentCalls { get; }
 }
 
 /// <summary>Contexts, screens, states, variants, snapshots, evidence, candidates, edges, observations and recipes.</summary>
@@ -135,4 +137,17 @@ public interface IEventOutbox
     Task<IReadOnlyList<OutboxEvent>> ListAsync(long afterSeq, int limit, CancellationToken ct);
 
     Task<long> LastSeqAsync(CancellationToken ct);
+}
+
+/// <summary>Reasoner calls with their validation result (ADR-0004: rejections are kept as evidence).</summary>
+public interface IAgentCallRepository
+{
+    /// <summary>Inserts the call unless its id exists. Returns true when inserted.</summary>
+    Task<bool> InsertIfAbsentAsync(AgentCall agentCall, CancellationToken ct);
+
+    /// <summary>Calls in insertion order, optionally only of one state.</summary>
+    Task<IReadOnlyList<AgentCall>> ListAsync(string? stateId, CancellationToken ct);
+
+    /// <summary>Usage of every recorded call (budgets resume from it).</summary>
+    Task<AgentUsageTotals> GetUsageTotalsAsync(CancellationToken ct);
 }

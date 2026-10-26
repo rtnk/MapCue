@@ -1,3 +1,4 @@
+using MapCue.Adapters.Reasoning;
 using MapCue.Application.Ports;
 using MapCue.Contracts.Agent;
 using MapCue.Domain;
@@ -18,6 +19,18 @@ public class FakePortsTests
 
     private static ValidatedDeviceAction Tap(string id) => new($"act-{id}", "com.example.demo", ActionType.Tap, RiskClass.Navigational, id, null, null);
 
+    private static AgentExplorationRequest Request(string snapshotHash) => new(
+        "req_0001",
+        "mapcue.agent-prompt/1",
+        new AgentTask("task_1", null, "AnalyzeState"),
+        new AgentSnapshot(snapshotHash, "android", "default", [new AgentSnapshotElement("e1", "button", "Accounts", "AccountsTab", ["clickable", "enabled"], 0, true, false)], 0),
+        new AgentContext("basic", "pl-PL", []),
+        new AgentGraphHints([], []),
+        new AgentPolicyView(["tap", "back"], ["safe", "navigational"], [], [], []),
+        new AgentLimits(20),
+        null,
+        "Interpret the screen.");
+
     private static ValidatedDeviceAction Back() => new("act-back", "com.example.demo", ActionType.Back, RiskClass.Navigational, null, null, null);
 
     [Fact]
@@ -28,13 +41,14 @@ public class FakePortsTests
         var home = await device.ObserveAsync(id, new ObservationRequest(_app.AppId, ObservationFidelity.Fast), CancellationToken.None);
 
         var reasoner = new DeterministicFakeReasoner()
-            .When(home.SnapshotHash, "Home", new AgentActionCandidate("c1", "e1", "tap", "navigational"));
-        var request = new AgentExplorationRequest("req_0001", home.SnapshotHash, [new AgentSnapshotElement("e1", "button", "Accounts", "AccountsTab")]);
+            .When(home.SnapshotHash, "Home", new AgentActionCandidate("c1", "e1", "tap", null, null, "Open accounts", "navigational", null, 0.9));
+        var request = Request(home.SnapshotHash);
         var answer = await reasoner.InterpretAsync(request, CancellationToken.None);
 
         Assert.Equal(ReasonerStatus.Succeeded, answer.Status);
-        Assert.Equal("req_0001", answer.Response!.RequestId);
-        Assert.Equal(home.SnapshotHash, answer.Response.SnapshotHash);
+        var response = AgentJson.Deserialize<AgentExplorationResponse>(answer.RawResponse!);
+        Assert.Equal("req_0001", response.RequestId);
+        Assert.Equal(home.SnapshotHash, response.SnapshotHash);
 
         var executed = await device.ExecuteAsync(id, Tap("AccountsTab"), CancellationToken.None);
         Assert.Equal(ActionOutcome.Succeeded, executed.Outcome);
@@ -42,7 +56,7 @@ public class FakePortsTests
 
         var accounts = await device.ObserveAsync(id, new ObservationRequest(_app.AppId, ObservationFidelity.Fast), CancellationToken.None);
         Assert.NotEqual(home.SnapshotHash, accounts.SnapshotHash);
-        Assert.Equal(ReasonerStatus.Unavailable, (await reasoner.InterpretAsync(request with { SnapshotHash = accounts.SnapshotHash }, CancellationToken.None)).Status);
+        Assert.Equal(ReasonerStatus.Unavailable, (await reasoner.InterpretAsync(Request(accounts.SnapshotHash), CancellationToken.None)).Status);
     }
 
     [Fact]

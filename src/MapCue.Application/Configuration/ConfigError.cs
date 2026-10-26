@@ -22,12 +22,14 @@ public static class ConfigErrorCodes
     public const string InvalidDuration = "CFG021";
     public const string InvalidAgentRuntime = "CFG030";
     public const string LocalAgentNotAllowed = "CFG031";
+    public const string InvalidAgentSetting = "CFG032";
     public const string InvalidProfile = "CFG040";
     public const string ProfileOutsideAllowlist = "CFG041";
     public const string LiteralInputValue = "CFG050";
     public const string InvalidSecretRef = "CFG051";
     public const string InvalidTapCueSetting = "CFG060";
     public const string ForbiddenPassEnvironment = "CFG061";
+    public const string InvalidRiskRule = "CFG070";
 }
 
 public sealed record ConfigValidationResult(MapCueSettings? Settings, IReadOnlyList<ConfigError> Errors)

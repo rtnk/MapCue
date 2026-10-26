@@ -3,4 +3,11 @@
     <ProjectReference Include="..\..\src\MapCue.Contracts\MapCue.Contracts.csproj" />
     <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="JsonSchema.Net" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Fixtures\agent-responses\**" LinkBase="Fixtures\agent-responses" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\schemas\*.json" LinkBase="schemas" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

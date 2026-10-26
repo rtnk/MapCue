@@ -1,0 +1,1 @@
+{"schemaVersion":"mapcue.agent-exploration-response/1","requestId":"{{requestId}}","snapshotHash":"{{snapshotHash}}","interpretation":{"proposedScreenName":"Prof

@@ -11,6 +11,8 @@
     <PackageVersion Include="YamlDotNet" Version="16.3.0" />
     <!-- Tests -->
     <PackageVersion Include="FsCheck.Xunit" Version="3.3.2" />
+    <!-- Reference JSON Schema 2020-12 implementation; tests only (MapCue validates with its own dependency-free subset validator). -->
+    <PackageVersion Include="JsonSchema.Net" Version="9.5.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />

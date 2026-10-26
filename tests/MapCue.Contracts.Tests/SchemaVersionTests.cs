@@ -25,12 +25,12 @@ public partial class SchemaVersionTests
     }
 
     [Fact]
-    public void Agent_contracts_carry_their_schema_version_by_default()
+    public void Agent_contracts_carry_their_schema_version_first()
     {
-        var request = new AgentExplorationRequest("req_1", "sha256:00", []);
-        var response = new AgentExplorationResponse("req_1", "sha256:00", null, []);
-        Assert.Equal("mapcue.agent-exploration-request/1", request.SchemaVersion);
+        var response = new AgentExplorationResponse("req_1", "sha256:00", new AgentInterpretation(null, null, null, 0), [], [], [], []);
         Assert.Equal("mapcue.agent-exploration-response/1", response.SchemaVersion);
+        Assert.StartsWith("{\"schemaVersion\":\"mapcue.agent-exploration-response/1\"", AgentJson.Serialize(response), StringComparison.Ordinal);
+        Assert.Equal("mapcue.agent-exploration-request/1", AgentContractSamples.Request().SchemaVersion);
     }
 
     [GeneratedRegex("^mapcue\\.[a-z][a-z-]*/[1-9][0-9]*$")]

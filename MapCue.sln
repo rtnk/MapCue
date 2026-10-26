@@ -49,6 +49,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapCue.Adapters.TapCue.Smok
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapCue.Adapters.TapCue.IntegrationTests", "tests\MapCue.Adapters.TapCue.IntegrationTests\MapCue.Adapters.TapCue.IntegrationTests.csproj", "{91AA8885-C186-4BE0-8808-509489ABCE13}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapCue.Adapters.Reasoning.Tests", "tests\MapCue.Adapters.Reasoning.Tests\MapCue.Adapters.Reasoning.Tests.csproj", "{71778196-6780-4105-A0C2-C6A44DFA08DF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -311,6 +313,18 @@ Global
 		{91AA8885-C186-4BE0-8808-509489ABCE13}.Release|x64.Build.0 = Release|Any CPU
 		{91AA8885-C186-4BE0-8808-509489ABCE13}.Release|x86.ActiveCfg = Release|Any CPU
 		{91AA8885-C186-4BE0-8808-509489ABCE13}.Release|x86.Build.0 = Release|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Debug|x64.Build.0 = Debug|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Debug|x86.Build.0 = Debug|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Release|x64.ActiveCfg = Release|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Release|x64.Build.0 = Release|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Release|x86.ActiveCfg = Release|Any CPU
+		{71778196-6780-4105-A0C2-C6A44DFA08DF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -337,5 +351,6 @@ Global
 		{D8922EEB-FA43-4468-AFD2-3ED57B643067} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{499D4378-1E42-4994-9A39-DC09D9CDBA9C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{91AA8885-C186-4BE0-8808-509489ABCE13} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{71778196-6780-4105-A0C2-C6A44DFA08DF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
