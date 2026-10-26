@@ -2,7 +2,7 @@
 
 MapCue (nazwa robocza, TOOL-009 „MobileGraph Explorer”) to planowane narzędzie CLI w .NET 10. Ma deterministycznie eksplorować aplikacje mobilne (Android/iOS) przez [TapCue](https://github.com/rtnk/TapCue). Buduje trwały graf ekranów, stanów i wariantów profili, kontrakty ekranów z macierzą dostępności, a zweryfikowane ścieżki eksportuje jako flow YAML TapCue.
 
-**Stan:** STEP-04 (interpretacja przez agenta). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0, działające `mapcue doctor`, a od STEP-03 model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Pozostałe komendy to zaślepki. Eksploracja jeszcze nie działa (od STEP-05).
+**Stan:** STEP-04 (interpretacja przez agenta). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0, działające `mapcue doctor`, a od STEP-03 model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Pozostałe komendy to zaślepki. Eksploracja jeszcze nie działa (od STEP-05). Od STEP-02B jest aplikacja kontrolna MAUI `samples/MapCue.DemoApp` (cel eksploracji, poza `MapCue.sln`).
 
 ## Szybki start (bez urządzenia, TapCue i LLM)
 
@@ -49,6 +49,19 @@ PATH=/tmp/tapcue/unpacked/tapcue-0.1.0-macos-arm64/bin:$PATH dotnet run --projec
 ```
 
 `doctor` sprawdza plik wykonywalny, wersję (`tapcue.supportedVersions`), środowisko, handshake MCP z wymaganymi narzędziami, podłączone urządzenia z allowlisty i opcjonalnie odczyt ekranu (bez żadnej akcji). Smoke na urządzeniu: `.github/workflows/tapcue-smoke.yml` i `tests/MapCue.Adapters.TapCue.Smoke/run-device-smoke.sh`.
+
+## Aplikacja demo (STEP-02B)
+
+[`samples/MapCue.DemoApp`](samples/MapCue.DemoApp) to aplikacja .NET MAUI (`net10.0-android`, `net10.0-ios`) bez backendu i bez prawdziwych danych: wybór profilu testowego (`basic`/`investor`, scenariusz pustych rachunków), ładowanie, Home z zakładkami, rachunki, szczegóły, Investments (tylko `investor`), Ustawienia, modal, akcje ryzykowne i celowy nieznany popup. Nie jest w `MapCue.sln`, więc `dotnet build MapCue.sln` nie wymaga workloadów MAUI. Oczekiwana mapa: [`expected-graph.md`](samples/MapCue.DemoApp/expected-graph.md). Flow TapCue: `samples/MapCue.DemoApp/.tapcue/`.
+
+```bash
+python3 -I samples/MapCue.DemoApp/check-consistency.py                     # AutomationId ↔ flow ↔ expected-graph.md
+dotnet workload install maui-android
+dotnet publish samples/MapCue.DemoApp/MapCue.DemoApp.csproj -f net10.0-android -c Release -o out   # out/com.mapcue.demoapp-Signed.apk
+samples/MapCue.DemoApp/run-flows.sh <tapcue> out/com.mapcue.demoapp-Signed.apk reports/demo [emulator-5554]
+```
+
+CI: `.github/workflows/demo-app.yml` (APK, flow na emulatorze; build iOS ręcznie przez `workflow_dispatch` z `ios=true`).
 
 ## Dokumentacja
 

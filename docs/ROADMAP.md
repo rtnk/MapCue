@@ -11,9 +11,9 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 | 00 | Discovery & architecture | P0 | — | zmergowany (PR #2) |
 | 01 | Solution foundation | P0 | 00 | zmergowany (PR #3) |
 | 02 | TapCue adapter | P0 | 01 | zmergowany (PR #4) |
-| 02B | Demo/fixture app (MAUI) **[propozycja, wymaga zgody]** | P0 | 01 (równolegle z 03/04 po 02) | nie rozpoczęty |
+| 02B | Demo/fixture app (MAUI) | P0 | 01 (równolegle z 03/04 po 02) | PR #7 otwarty (czeka na review i merge) |
 | 03 | Graph & persistence | P0 | 01 | zmergowany (PR #5) |
-| 04 | Agent interpretation | P0 | 01, 03 | PR otwarty (czeka na review i merge) |
+| 04 | Agent interpretation | P0 | 01, 03 | zmergowany (PR #6) |
 | 05 | Vertical slice crawler | P0 (MVP) | 02, 02B, 03, 04 | nie rozpoczęty |
 | 06 | Frontier scheduler | P0 (MVP) | 05 | nie rozpoczęty |
 | 07 | Profiles & variants | P0 (MVP) | 06 | nie rozpoczęty |
@@ -27,7 +27,7 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 
 ### Zmiany względem planu bazowego (uzasadnienie)
 
-1. **Nowy STEP-02B: aplikacja kontrolna.** Scenariusz akceptacyjny wymaga ≥ 5 stanów, cyklu, modala, wariantu profilu i celowej blokady, a w żadnym etapie bazowym nie ma aplikacji, która to zapewnia. Systemowe Settings wystarczą tylko do smoke. Wpływ: STEP-05 zależy od 02B. 02B można robić po 01 równolegle z 03/04, bo nie dotyka kodu MapCue. **Wymaga decyzji Roberta.** Domyślnie, bez innej decyzji, wchodzi do planu. Alternatywa: aplikacja w osobnym repo albo natywna aplikacja Android (wtedy demo nie testuje MAUI).
+1. **Nowy STEP-02B: aplikacja kontrolna.** Scenariusz akceptacyjny wymaga ≥ 5 stanów, cyklu, modala, wariantu profilu i celowej blokady, a w żadnym etapie bazowym nie ma aplikacji, która to zapewnia. Systemowe Settings wystarczą tylko do smoke. Wpływ: STEP-05 zależy od 02B. 02B można robić po 01 równolegle z 03/04, bo nie dotyka kodu MapCue. **Decyzja Roberta (2026-10-26): zatwierdzone**, wariant domyślny (aplikacja MAUI w tym repo, `samples/MapCue.DemoApp`, poza `MapCue.sln`). Odrzucone alternatywy: osobne repo, natywna aplikacja Android.
 2. **Wczesny iOS smoke w STEP-02**, a nie dopiero w STEP-12 (wymóg promptu, ryzyko R-01).
 3. **Model elementów i wariantów (`elementKey`, `ScreenVariant`) w STEP-03**, a artefakty ScreenContract w STEP-08. Transkrypt traktuje Structure i Variant Analyzer jako P0 (bez tego trzeba przebudować graf).
 4. **`RuleBasedReasoner` w STEP-04**, żeby STEP-05…07 nie zależały od dostępności LLM i kosztów.
@@ -71,7 +71,7 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 - **Ryzyka:** R-01, R-02, R-03, R-08, R-12.
 - **Minimalny PR:** adapter + fixtures + smoke Android. Smoke iOS może być osobnym jobem `workflow_dispatch` w tym samym PR.
 
-### STEP-02B: Demo/fixture app (MAUI) [propozycja]
+### STEP-02B: Demo/fixture app (MAUI)
 
 - **Wejścia:** prompt §2 (scenariusz akceptacyjny), transkrypt §10.
 - **Deliverables:** `samples/MapCue.DemoApp` (`net10.0-android`, `net10.0-ios`) z ≥ 6 ekranami: wybór profilu testowego (bez backendu, deterministyczne dane), Home z zakładkami, lista rachunków (pusta lub z danymi zależnie od scenariusza), szczegóły rachunku, Ustawienia; modal; stan ładowania (deterministyczne opóźnienie); cykle Home↔Accounts i Details→Home; funkcja „Investments” tylko dla profilu `investor`; przycisk „Delete” (do testu polityki); celowy nieznany popup (blokada); `AutomationId` na kluczowych elementach. Flow YAML TapCue `samples/MapCue.DemoApp/.tapcue/` (setup profili). Dokument mapy oczekiwanej (`expected-graph.md`) jako wyrocznia testów.
@@ -157,7 +157,7 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 | R-07 | brak automatyzacji czytników ekranu (G-05) | pewne / średni | `unsupported` + protokół manualny | 08 |
 | R-08 | Linux nieoficjalny dla TapCue | średnie / niski | macOS arm64 jako referencja; Android na Linuksie best effort | 02, 12 |
 | R-09 | polityka sieci środowiska agenta blokuje narzędzia (np. `dl.google.com`) | wystąpiło / średni | archiwa Release, CI GitHub, jawne NOT RUN | każdy |
-| R-10 | workloady MAUI i koszt macOS w CI | średnie / średni | Android build na ubuntu, iOS job ręczny | 02B, 12 |
+| R-10 | workloady MAUI i koszt macOS w CI | średnie / średni | Android build na ubuntu, iOS job ręczny. **STEP-02B:** aplikacja poza `MapCue.sln` (własne `samples/Directory.Build.props`/`Directory.Packages.props`), więc build MapCue nie wymaga workloadów; `demo-app.yml` instaluje `maui-android` na ubuntu (APK + flow na emulatorze tylko przy zmianach w `samples/**`), `maui-ios` tylko w ręcznym jobie `ios-build` na `macos-26`. Lokalnie w sesji agenta workload i Android SDK są niedostępne (R-09) | 02B, 12 |
 | R-11 | SQLite: jeden zapisujący | pewne / niski (MVP) | jedna instancja na workspace (STEP-03: blokada `.mapcue/lock`, serializowane transakcje `BEGIN IMMEDIATE`); port pod przyszły store | 03, 06 |
 | R-12 | zmiany TapCue między wersjami | średnie / średni | przypięcie wersji, fixtures per wersja | 02 |
 | R-13 | wyciek sekretów przez echo `env_vars` (G-06) | pewne bez mitigacji / wysoki | czyste env + redakcja wyniku + test | 02 |
@@ -174,7 +174,7 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 
 ## Decyzje do potwierdzenia przez Roberta
 
-1. Włączenie **STEP-02B** (demo app MAUI w tym repo). Domyślnie: tak.
+1. ~~Włączenie **STEP-02B** (demo app MAUI w tym repo).~~ **Zatwierdzone przez Roberta (2026-10-26)**, wariant domyślny; zrealizowane w STEP-02B (PR #7).
 2. Pierwszy realny provider LLM dla `CliAgentReasoner`: domyślnie Claude CLI (`claude -p`) w kontenerze, Codex jako drugi adapter. **STEP-04:** zaimplementowany tylko `claude` (smoke lokalny PASS, kontener NOT RUN). Obraz kontenera agenta (`agent.containerImage`) wybiera operator; Codex nie jest zaimplementowany.
 3. Dostęp do runnera macOS dla smoke iOS (GitHub Actions `macos-26` albo host Roberta).
 4. Czy eksperyment z AppScreenMap (ADR-0005) jest wymagany przed STEP-03. Domyślnie: nie, opcjonalnie w STEP-05/10.
