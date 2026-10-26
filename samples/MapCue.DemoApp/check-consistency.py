@@ -53,8 +53,14 @@ def main() -> int:
         if not re.search(rf"^appId: {re.escape(app_id)}$", text, re.M):
             errors.append(f"{flow.name}: appId is not {app_id}")
         for selector in re.findall(r"""(?:tapOn|assertVisible|assertNotVisible|visible):\s*["']([^"']+)["']""", text):
-            if ID.match(selector) and selector not in ids:
-                errors.append(f"{flow.name}: selector '{selector}' is not an automation id of the app")
+            if ID.match(selector):
+                errors.append(f"{flow.name}: '{selector}' is a text selector; automation ids are resource ids, use id: \"(.*/)?{selector}\"")
+        for line in re.findall(r"^\s*id:.*$", text, re.M):
+            m = re.fullmatch(r'\s*id: "\(\.\*/\)\?([a-z]+\.[a-z]+)"', line)
+            if not m:
+                errors.append(f"{flow.name}: id selector must be id: \"(.*/)?<automation id>\": {line.strip()}")
+            elif m.group(1) not in ids:
+                errors.append(f"{flow.name}: selector id '{m.group(1)}' is not an automation id of the app")
 
     for error in errors:
         print(f"FAIL {error}")

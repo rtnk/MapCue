@@ -11,11 +11,13 @@ Przejścia potwierdzają na emulatorze flow `tour-basic.yaml` i `tour-investor.y
 
 ## Jak MapCue widzi aplikację (Android)
 
-- MAUI na Androidzie zapisuje `AutomationId` w `content-desc` widoku (`PlatformInterop.setContentDescriptionForAutomationId`). TapCue i MapCue widzą je jako `accessibilityText`. Etykieta elementu w MapCue to więc `AutomationId`, a klucz to `label:<role>:<AutomationId>` (siła `Label`). `resource-id` aplikacja nie ma.
-- `AutomationId` nie zawierają cyfr, więc maskowanie MapCue (`#` za cyfry) ich nie zmienia. Wiersze list nie mają `AutomationId`; ich tekst zawiera kwoty i jest maskowany.
-- Selektory w flow to tekst (regex całego tekstu), dopasowywany do `text` albo `accessibilityText`, np. `tapOn: "profile.basic"`.
-- Konsekwencja dla accessibility: TalkBack czyta `AutomationId` zamiast tekstu przycisku. To znana właściwość MAUI, celowo zostawiona. STEP-08 powinien ją wykazać jako problem etykiet, nie jako PASS.
-- Dokładne fingerprinty (`identityHash`) nie są tu przypięte. Kalibracja progów na nagraniach z tej aplikacji to zadanie STEP-05 (R-04). Hierarchie ekranów po setupie obu profili są w artefaktach joba `android-smoke` (`hierarchy-*.txt`).
+- MAUI w .NET 10 zapisuje na Androidzie `AutomationId` jako `resource-id` widoku: `com.mapcue.demoapp:id/<AutomationId>`. `content-desc` (`accessibilityText`) zostaje pusty. Potwierdza to hierarchia z emulatora (job `android-smoke`, run 40333292191, ekran wyboru profilu: `com.mapcue.demoapp:id/profile.basic`, `…/scenario.empty`, `…/screen.profile`). Na iOS `AutomationId` to `accessibilityIdentifier` (nie sprawdzone na symulatorze).
+- MapCue kluczuje więc elementy po `resource-id` (`elementKey = id:com.mapcue.demoapp:id/<AutomationId>`, siła `ResourceId`). Tytuły ekranów (`screen.*`) są nieinteraktywnymi kotwicami z `resource-id`, więc wchodzą do `identityHash`. Etykieta elementu to jego tekst (np. „Basic”).
+- Klasyfikator ryzyka czyta słowa z tekstu i z `resource-id` (`details.delete` daje słowa `details`, `delete`).
+- Wiersze list (rachunki, fundusze) nie mają `AutomationId`, więc nie mają `resource-id`. Ich tekst zawiera kwoty i jest maskowany.
+- Selektory w flow: `id: "(.*/)?<AutomationId>"` (regex całego `resource-id`; pasuje do formy Androida z pakietem i do identyfikatora iOS). Wiersze i przyciski `AlertDialog` wybierane są tekstem.
+- MAUI ustawia też własne identyfikatory kontenerów (`navigation_layout`, `navigationlayout_content`, `action_bar_root`). To stabilne kotwice wspólne dla wszystkich ekranów.
+- Dokładne fingerprinty (`identityHash`) nie są tu przypięte. Kalibracja progów na nagraniach z tej aplikacji to zadanie STEP-05 (R-04). Hierarchie ekranów po setupie obu profili są w artefakcie `demo-android-flows` (`hierarchy-*.txt`) i w logu joba.
 
 ## Profile i scenariusze
 
@@ -29,7 +31,7 @@ Przełącznik `scenario.empty` działa też z profilem `investor` (wtedy 0 rachu
 
 ## Ekrany i stany
 
-Znacznik ekranu to tytuł (`Label`) z `AutomationId` `screen.*`. Kolumna „stateKind” podaje dyskryminator, którego oczekujemy od normalizacji MapCue.
+Znacznik ekranu to tytuł (`Label`) z `AutomationId` `screen.*` (na Androidzie `resource-id`). Kolumna „stateKind” podaje dyskryminator, którego oczekujemy od normalizacji MapCue.
 
 | # | Ekran logiczny | Znacznik | Elementy interaktywne (`AutomationId` / tekst) | Stany (`stateKind`) |
 |---|---|---|---|---|
@@ -139,10 +141,10 @@ Linie przerywane to akcje ryzykowne (poza domyślną polityką).
 
 ## Ryzyko akcji
 
-Tabela czytana przez `DemoAppRiskOracleTests`: element (rola, etykieta = `AutomationId`, tekst) i klasa, którą musi dać `RiskClassifier` dla `tap`.
+Tabela czytana przez `DemoAppRiskOracleTests`: element (rola, `AutomationId`, czyli `resource-id` `com.mapcue.demoapp:id/<AutomationId>`, i tekst) i klasa, którą musi dać `RiskClassifier` dla `tap`.
 
 <!-- risk-oracle:begin -->
-| Rola | Etykieta | Tekst | Ryzyko |
+| Rola | AutomationId | Tekst | Ryzyko |
 |---|---|---|---|
 | button | profile.basic | Basic | navigational |
 | button | profile.investor | Investor | navigational |

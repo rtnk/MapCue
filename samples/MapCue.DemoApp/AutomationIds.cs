@@ -3,8 +3,10 @@ namespace MapCue.DemoApp;
 /// <summary>
 /// Stable automation ids of the demo app. They are the contract with the TapCue flows (<c>.tapcue/</c>) and the oracle
 /// (<c>expected-graph.md</c>); <c>check-consistency.py</c> fails when the three drift apart.
-/// On Android MAUI writes <c>AutomationId</c> to the view's content description, so TapCue matches it with a text selector
-/// and MapCue sees it as the element label. Ids contain no digits, so MapCue's text masking keeps them intact.
+/// On Android (.NET 10 MAUI, observed on the emulator) <c>AutomationId</c> becomes the view's resource id
+/// <c>com.mapcue.demoapp:id/&lt;id&gt;</c>; on iOS it is the accessibility identifier. Flows select it with
+/// <c>id: "(.*/)?&lt;id&gt;"</c>, which matches both, and MapCue keys the element by resource id. Ids are
+/// <c>&lt;lowercase&gt;.&lt;lowercase&gt;</c> without digits.
 /// </summary>
 public static class AutomationIds
 {

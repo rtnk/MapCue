@@ -5,16 +5,17 @@ namespace MapCue.Application.Tests.Agent;
 
 /// <summary>
 /// The demo app's oracle (<c>samples/MapCue.DemoApp/expected-graph.md</c>, table "Ryzyko akcji") states the risk class MapCue's
-/// rules give every action of the app. This keeps the oracle and <see cref="RiskClassifier"/> from drifting apart (STEP-02B).
+/// rules give every action of the app, seen as on Android (resource id from the AutomationId, label from the text).
+/// This keeps the oracle and <see cref="RiskClassifier"/> from drifting apart (STEP-02B).
 /// </summary>
 public class DemoAppRiskOracleTests
 {
     private const string Begin = "<!-- risk-oracle:begin -->";
     private const string End = "<!-- risk-oracle:end -->";
 
-    public sealed record OracleRow(string Role, string? Label, string? Text, RiskClass Risk)
+    public sealed record OracleRow(string Role, string? AutomationId, string? Text, RiskClass Risk)
     {
-        public override string ToString() => $"{Role} '{Label ?? Text}'";
+        public override string ToString() => $"{Role} '{AutomationId ?? Text}'";
     }
 
     private static string OraclePath
@@ -68,7 +69,9 @@ public class DemoAppRiskOracleTests
     [MemberData(nameof(Rows))]
     public void Rule_classifier_matches_the_oracle(OracleRow row)
     {
-        var assessment = new RiskClassifier().Classify(ActionType.Tap, row.Role, null, [row.Label, row.Text]);
+        // On Android the AutomationId is the resource id (expected-graph.md, "Jak MapCue widzi aplikację"); the label is the text.
+        var resourceId = row.AutomationId is null ? null : "com.mapcue.demoapp:id/" + row.AutomationId;
+        var assessment = new RiskClassifier().Classify(ActionType.Tap, row.Role, resourceId, [row.Text]);
         Assert.Equal(row.Risk, assessment.Risk);
     }
 }

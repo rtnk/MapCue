@@ -5,43 +5,69 @@ appId: com.mapcue.demoapp
 - launchApp:
     clearState: true
 - extendedWaitUntil:
-    visible: "screen.profile"
+    visible:
+      id: "(.*/)?screen.profile"
     timeout: 30000
-- tapOn: "profile.basic"
+- tapOn:
+    id: "(.*/)?profile.basic"
 - extendedWaitUntil:
-    visible: "screen.home"
+    visible:
+      id: "(.*/)?screen.home"
     timeout: 15000
-- assertNotVisible: "tab.investments"
+- assertNotVisible:
+    id: "(.*/)?tab.investments"
 # Modal page: open and close.
-- tapOn: "home.whatsnew"
-- assertVisible: "screen.whatsnew"
-- tapOn: "whatsnew.close"
-- assertVisible: "screen.home"
+- tapOn:
+    id: "(.*/)?home.whatsnew"
+- assertVisible:
+    id: "(.*/)?screen.whatsnew"
+- tapOn:
+    id: "(.*/)?whatsnew.close"
+- assertVisible:
+    id: "(.*/)?screen.home"
 # Cycle Home -> Accounts -> Home (button and tabs).
-- tapOn: "home.accounts"
-- assertVisible: "screen.accounts"
+- tapOn:
+    id: "(.*/)?home.accounts"
+- assertVisible:
+    id: "(.*/)?screen.accounts"
 - assertVisible: "Everyday account.*"
 - assertVisible: "Savings account.*"
 - assertNotVisible: "Brokerage account.*"
-- tapOn: "tab.home"
-- assertVisible: "screen.home"
-- tapOn: "tab.accounts"
-- assertVisible: "screen.accounts"
+- tapOn:
+    id: "(.*/)?tab.home"
+- assertVisible:
+    id: "(.*/)?screen.home"
+- tapOn:
+    id: "(.*/)?tab.accounts"
+- assertVisible:
+    id: "(.*/)?screen.accounts"
 # Details -> Home.
 - tapOn: "Everyday account.*"
-- assertVisible: "screen.details"
-- assertVisible: "details.delete"
-- tapOn: "details.home"
-- assertVisible: "screen.home"
+- assertVisible:
+    id: "(.*/)?screen.details"
+- assertVisible:
+    id: "(.*/)?details.delete"
+- tapOn:
+    id: "(.*/)?details.home"
+- assertVisible:
+    id: "(.*/)?screen.home"
 # Details -> back -> Accounts.
-- tapOn: "tab.accounts"
+- tapOn:
+    id: "(.*/)?tab.accounts"
 - tapOn: "Savings account.*"
-- assertVisible: "screen.details"
+- assertVisible:
+    id: "(.*/)?screen.details"
 - back
-- assertVisible: "screen.accounts"
+- assertVisible:
+    id: "(.*/)?screen.accounts"
 # Settings and the profile switch cycle.
-- tapOn: "tab.settings"
-- assertVisible: "screen.settings"
-- assertVisible: "settings.notifications"
-- tapOn: "settings.switchprofile"
-- assertVisible: "screen.profile"
+- tapOn:
+    id: "(.*/)?tab.settings"
+- assertVisible:
+    id: "(.*/)?screen.settings"
+- assertVisible:
+    id: "(.*/)?settings.notifications"
+- tapOn:
+    id: "(.*/)?settings.switchprofile"
+- assertVisible:
+    id: "(.*/)?screen.profile"

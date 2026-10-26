@@ -5,34 +5,51 @@ appId: com.mapcue.demoapp
 - launchApp:
     clearState: true
 - extendedWaitUntil:
-    visible: "screen.profile"
+    visible:
+      id: "(.*/)?screen.profile"
     timeout: 30000
-- tapOn: "profile.investor"
+- tapOn:
+    id: "(.*/)?profile.investor"
 - extendedWaitUntil:
-    visible: "screen.home"
+    visible:
+      id: "(.*/)?screen.home"
     timeout: 15000
 # Investments (investor only).
-- tapOn: "tab.investments"
-- assertVisible: "screen.investments"
-- assertVisible: "investments.buy"
+- tapOn:
+    id: "(.*/)?tab.investments"
+- assertVisible:
+    id: "(.*/)?screen.investments"
+- assertVisible:
+    id: "(.*/)?investments.buy"
 - assertVisible: "Global equity fund.*"
 # Accounts: three rows, delete asks for confirmation; Cancel keeps the account.
-- tapOn: "tab.accounts"
+- tapOn:
+    id: "(.*/)?tab.accounts"
 - assertVisible: "Brokerage account.*"
 - tapOn: "Brokerage account.*"
-- assertVisible: "screen.details"
-- tapOn: "details.delete"
+- assertVisible:
+    id: "(.*/)?screen.details"
+- tapOn:
+    id: "(.*/)?details.delete"
 - assertVisible: 'Delete this account\?'
 - tapOn: "(?i)cancel"
-- assertVisible: "screen.details"
+- assertVisible:
+    id: "(.*/)?screen.details"
 - back
 - assertVisible: "Brokerage account.*"
 # Unknown popup: back does not close it.
-- tapOn: "tab.settings"
-- assertVisible: "screen.settings"
-- tapOn: "settings.checkupdates"
-- assertVisible: "screen.verify"
-- assertVisible: "verify.sendcode"
-- assertVisible: "verify.signout"
+- tapOn:
+    id: "(.*/)?tab.settings"
+- assertVisible:
+    id: "(.*/)?screen.settings"
+- tapOn:
+    id: "(.*/)?settings.checkupdates"
+- assertVisible:
+    id: "(.*/)?screen.verify"
+- assertVisible:
+    id: "(.*/)?verify.sendcode"
+- assertVisible:
+    id: "(.*/)?verify.signout"
 - back
-- assertVisible: "screen.verify"
+- assertVisible:
+    id: "(.*/)?screen.verify"

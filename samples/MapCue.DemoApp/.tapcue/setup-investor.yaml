@@ -4,12 +4,18 @@ appId: com.mapcue.demoapp
 - launchApp:
     clearState: true
 - extendedWaitUntil:
-    visible: "screen.profile"
+    visible:
+      id: "(.*/)?screen.profile"
     timeout: 30000
-- tapOn: "profile.investor"
+- tapOn:
+    id: "(.*/)?profile.investor"
 - extendedWaitUntil:
-    visible: "screen.home"
+    visible:
+      id: "(.*/)?screen.home"
     timeout: 15000
-- assertVisible: "tab.accounts"
-- assertVisible: "tab.settings"
-- assertVisible: "tab.investments"
+- assertVisible:
+    id: "(.*/)?tab.accounts"
+- assertVisible:
+    id: "(.*/)?tab.settings"
+- assertVisible:
+    id: "(.*/)?tab.investments"
