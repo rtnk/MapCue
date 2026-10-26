@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- No permissions: the demo app has no network access and no backend. -->
+  <application android:allowBackup="false" android:supportsRtl="true" android:label="MapCue Demo"></application>
+</manifest>

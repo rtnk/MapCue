@@ -1,0 +1,206 @@
+name: Demo app
+
+# STEP-02B evidence for samples/MapCue.DemoApp (docs/handovers/STEP-02B.md). The app is not part of MapCue.sln.
+# - android-build: consistency of ids/flows/oracle, MAUI workload, Release APK (artifact demo-apk).
+# - android-smoke: TapCue 0.1.0 check-syntax and the .tapcue/ flows on an Android emulator (API 34, KVM):
+#   setup of both profiles (basic, investor, basic + empty accounts) and the expected-graph.md tours.
+# - ios-build: manual only (workflow_dispatch with ios=true, macos-26): simulator build of net10.0-ios (R-10).
+on:
+  pull_request:
+    paths:
+      - "samples/**"
+      - ".github/workflows/demo-app.yml"
+  push:
+    branches: [main]
+    paths:
+      - "samples/**"
+      - ".github/workflows/demo-app.yml"
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: "Also build the iOS app on macos-26 (billed macOS minutes)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-app-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  PROJECT: samples/MapCue.DemoApp/MapCue.DemoApp.csproj
+
+jobs:
+  android-build:
+    name: Android APK build (ubuntu, MAUI workload)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Automation ids, flows and oracle are consistent
+        run: python3 -I samples/MapCue.DemoApp/check-consistency.py
+
+      - name: Setup .NET (version from global.json)
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+
+      - name: Set up Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - name: Install the maui-android workload
+        run: |
+          dotnet --version
+          dotnet workload install maui-android
+          dotnet workload list
+
+      - name: Install Android SDK dependencies of the project
+        run: >
+          dotnet build "$PROJECT" -t:InstallAndroidDependencies -f net10.0-android
+          -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" -p:AcceptAndroidSDKLicenses=True
+
+      - name: Build the Release APK
+        run: |
+          mkdir -p reports
+          dotnet publish "$PROJECT" -f net10.0-android -c Release \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" \
+            -o "$RUNNER_TEMP/publish" -bl:reports/android-build.binlog
+          mkdir -p apk
+          cp "$RUNNER_TEMP/publish/com.mapcue.demoapp-Signed.apk" apk/
+          ls -l apk
+          sha256sum apk/*.apk | tee reports/apk.sha256
+
+      - name: Upload APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-apk
+          path: apk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-android-build-log
+          path: reports
+          retention-days: 14
+          if-no-files-found: warn
+
+  android-smoke:
+    name: Demo flows on Android emulator (ubuntu, API 34)
+    needs: android-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle || true
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+          ls -l /dev/kvm || true
+          if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
+            echo "::error::No KVM on this runner: the demo flows are NOT RUN."
+            echo "NOT RUN: no KVM on this runner, the emulator cannot start." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Set up Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - name: Fetch TapCue (pinned SHA-256)
+        run: echo "TAPCUE=$(tests/MapCue.Adapters.TapCue.Smoke/fetch-tapcue.sh "$RUNNER_TEMP/tapcue")" >> "$GITHUB_ENV"
+
+      - name: Flows pass tapcue check-syntax
+        run: for f in samples/MapCue.DemoApp/.tapcue/*.yaml; do echo "$f"; "$TAPCUE" check-syntax "$f"; done
+
+      - name: Download APK
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: demo-apk
+          path: apk
+
+      - name: Run the flows on the emulator
+        uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: samples/MapCue.DemoApp/run-flows.sh "$TAPCUE" apk/com.mapcue.demoapp-Signed.apk reports/demo emulator-5554
+
+      - name: Summary
+        if: always()
+        run: cat reports/demo/report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "no flow report" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-android-flows
+          path: reports
+          retention-days: 14
+          if-no-files-found: warn
+
+  ios-build:
+    name: iOS simulator build (macos-26, manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.ios
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Xcode
+        run: xcodebuild -version
+
+      - name: Setup .NET (version from global.json)
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+
+      - name: Install the maui-ios workload
+        run: |
+          dotnet workload install maui-ios
+          dotnet workload list
+
+      - name: Build for the iOS Simulator (no signing)
+        run: |
+          mkdir -p reports
+          dotnet build "$PROJECT" -f net10.0-ios -p:TargetFrameworks=net10.0-ios -c Debug \
+            -p:RuntimeIdentifier=iossimulator-arm64 -bl:reports/ios-build.binlog
+          find samples/MapCue.DemoApp/bin -name '*.app' -maxdepth 5 -print
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-ios-build-log
+          path: reports
+          retention-days: 14
+          if-no-files-found: warn

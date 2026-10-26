@@ -1,0 +1,16 @@
+# Setup of the "basic" test profile: fresh app state, profile picker, Home.
+# Selectors match MAUI AutomationId (Android: content description). See ../expected-graph.md.
+appId: com.mapcue.demoapp
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "screen.profile"
+    timeout: 30000
+- tapOn: "profile.basic"
+- extendedWaitUntil:
+    visible: "screen.home"
+    timeout: 15000
+- assertVisible: "tab.accounts"
+- assertVisible: "tab.settings"
+- assertNotVisible: "tab.investments"

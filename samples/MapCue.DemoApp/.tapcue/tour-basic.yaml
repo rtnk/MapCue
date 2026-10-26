@@ -1,0 +1,47 @@
+# Oracle check for ../expected-graph.md, profile "basic": every screen and transition of the map that a safe
+# exploration can take, plus the blocker. Not a setup flow; it never confirms a risky action.
+appId: com.mapcue.demoapp
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "screen.profile"
+    timeout: 30000
+- tapOn: "profile.basic"
+- extendedWaitUntil:
+    visible: "screen.home"
+    timeout: 15000
+- assertNotVisible: "tab.investments"
+# Modal page: open and close.
+- tapOn: "home.whatsnew"
+- assertVisible: "screen.whatsnew"
+- tapOn: "whatsnew.close"
+- assertVisible: "screen.home"
+# Cycle Home -> Accounts -> Home (button and tabs).
+- tapOn: "home.accounts"
+- assertVisible: "screen.accounts"
+- assertVisible: "Everyday account.*"
+- assertVisible: "Savings account.*"
+- assertNotVisible: "Brokerage account.*"
+- tapOn: "tab.home"
+- assertVisible: "screen.home"
+- tapOn: "tab.accounts"
+- assertVisible: "screen.accounts"
+# Details -> Home.
+- tapOn: "Everyday account.*"
+- assertVisible: "screen.details"
+- assertVisible: "details.delete"
+- tapOn: "details.home"
+- assertVisible: "screen.home"
+# Details -> back -> Accounts.
+- tapOn: "tab.accounts"
+- tapOn: "Savings account.*"
+- assertVisible: "screen.details"
+- back
+- assertVisible: "screen.accounts"
+# Settings and the profile switch cycle.
+- tapOn: "tab.settings"
+- assertVisible: "screen.settings"
+- assertVisible: "settings.notifications"
+- tapOn: "settings.switchprofile"
+- assertVisible: "screen.profile"

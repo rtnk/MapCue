@@ -1,0 +1,6 @@
+<Project>
+  <!-- MAUI adds Microsoft.Maui.Controls with the workload's $(MauiVersion); MapCue's central package versions do not apply here. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

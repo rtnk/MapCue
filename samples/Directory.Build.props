@@ -1,0 +1,9 @@
+<Project>
+  <!--
+    Samples are not part of MapCue.sln. This file stops MSBuild from importing the repository's Directory.Build.props
+    (net10.0, warnings as errors, invariant globalization, analyzers), which do not apply to a MAUI app.
+  -->
+  <PropertyGroup>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

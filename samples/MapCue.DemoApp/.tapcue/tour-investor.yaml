@@ -1,0 +1,38 @@
+# Oracle check for ../expected-graph.md, profile "investor": the Investments tab, the delete confirmation (cancelled)
+# and the unknown popup that ignores back (the blocker). It never confirms a risky action.
+appId: com.mapcue.demoapp
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "screen.profile"
+    timeout: 30000
+- tapOn: "profile.investor"
+- extendedWaitUntil:
+    visible: "screen.home"
+    timeout: 15000
+# Investments (investor only).
+- tapOn: "tab.investments"
+- assertVisible: "screen.investments"
+- assertVisible: "investments.buy"
+- assertVisible: "Global equity fund.*"
+# Accounts: three rows, delete asks for confirmation; Cancel keeps the account.
+- tapOn: "tab.accounts"
+- assertVisible: "Brokerage account.*"
+- tapOn: "Brokerage account.*"
+- assertVisible: "screen.details"
+- tapOn: "details.delete"
+- assertVisible: 'Delete this account\?'
+- tapOn: "(?i)cancel"
+- assertVisible: "screen.details"
+- back
+- assertVisible: "Brokerage account.*"
+# Unknown popup: back does not close it.
+- tapOn: "tab.settings"
+- assertVisible: "screen.settings"
+- tapOn: "settings.checkupdates"
+- assertVisible: "screen.verify"
+- assertVisible: "verify.sendcode"
+- assertVisible: "verify.signout"
+- back
+- assertVisible: "screen.verify"
