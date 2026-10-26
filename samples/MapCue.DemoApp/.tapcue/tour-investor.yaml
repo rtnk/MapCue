@@ -1,0 +1,55 @@
+# Oracle check for ../expected-graph.md, profile "investor": the Investments tab, the delete confirmation (cancelled)
+# and the unknown popup that ignores back (the blocker). It never confirms a risky action.
+appId: com.mapcue.demoapp
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "(.*/)?screen.profile"
+    timeout: 30000
+- tapOn:
+    id: "(.*/)?profile.investor"
+- extendedWaitUntil:
+    visible:
+      id: "(.*/)?screen.home"
+    timeout: 15000
+# Investments (investor only).
+- tapOn:
+    id: "(.*/)?tab.investments"
+- assertVisible:
+    id: "(.*/)?screen.investments"
+- assertVisible:
+    id: "(.*/)?investments.buy"
+- assertVisible: "Global equity fund.*"
+# Accounts: three rows, delete asks for confirmation; Cancel keeps the account.
+- tapOn:
+    id: "(.*/)?tab.accounts"
+- assertVisible: "Brokerage account.*"
+- tapOn: "Brokerage account.*"
+- assertVisible:
+    id: "(.*/)?screen.details"
+- tapOn:
+    id: "(.*/)?details.delete"
+- assertVisible: 'Delete this account\?'
+- tapOn: "(?i)cancel"
+- assertVisible:
+    id: "(.*/)?screen.details"
+- back
+- assertVisible: "Brokerage account.*"
+# Unknown popup: back does not close it.
+- tapOn:
+    id: "(.*/)?tab.settings"
+- assertVisible:
+    id: "(.*/)?screen.settings"
+- tapOn:
+    id: "(.*/)?settings.checkupdates"
+- assertVisible:
+    id: "(.*/)?screen.verify"
+- assertVisible:
+    id: "(.*/)?verify.sendcode"
+- assertVisible:
+    id: "(.*/)?verify.signout"
+- back
+- assertVisible:
+    id: "(.*/)?screen.verify"

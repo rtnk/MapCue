@@ -1,0 +1,73 @@
+# Oracle check for ../expected-graph.md, profile "basic": every screen and transition of the map that a safe
+# exploration can take, plus the blocker. Not a setup flow; it never confirms a risky action.
+appId: com.mapcue.demoapp
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "(.*/)?screen.profile"
+    timeout: 30000
+- tapOn:
+    id: "(.*/)?profile.basic"
+- extendedWaitUntil:
+    visible:
+      id: "(.*/)?screen.home"
+    timeout: 15000
+- assertNotVisible:
+    id: "(.*/)?tab.investments"
+# Modal page: open and close.
+- tapOn:
+    id: "(.*/)?home.whatsnew"
+- assertVisible:
+    id: "(.*/)?screen.whatsnew"
+- tapOn:
+    id: "(.*/)?whatsnew.close"
+- assertVisible:
+    id: "(.*/)?screen.home"
+# Cycle Home -> Accounts -> Home (button and tabs).
+- tapOn:
+    id: "(.*/)?home.accounts"
+- assertVisible:
+    id: "(.*/)?screen.accounts"
+- assertVisible: "Everyday account.*"
+- assertVisible: "Savings account.*"
+- assertNotVisible: "Brokerage account.*"
+- tapOn:
+    id: "(.*/)?tab.home"
+- assertVisible:
+    id: "(.*/)?screen.home"
+- tapOn:
+    id: "(.*/)?tab.accounts"
+- assertVisible:
+    id: "(.*/)?screen.accounts"
+# Details -> Home.
+- tapOn: "Everyday account.*"
+- assertVisible:
+    id: "(.*/)?screen.details"
+- assertVisible:
+    id: "(.*/)?details.delete"
+- tapOn:
+    id: "(.*/)?details.home"
+- assertVisible:
+    id: "(.*/)?screen.home"
+# Details -> back -> Accounts.
+- tapOn:
+    id: "(.*/)?tab.accounts"
+- tapOn: "Savings account.*"
+- assertVisible:
+    id: "(.*/)?screen.details"
+- back
+- assertVisible:
+    id: "(.*/)?screen.accounts"
+# Settings and the profile switch cycle.
+- tapOn:
+    id: "(.*/)?tab.settings"
+- assertVisible:
+    id: "(.*/)?screen.settings"
+- assertVisible:
+    id: "(.*/)?settings.notifications"
+- tapOn:
+    id: "(.*/)?settings.switchprofile"
+- assertVisible:
+    id: "(.*/)?screen.profile"

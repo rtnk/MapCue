@@ -1,0 +1,21 @@
+# Setup of the "investor" test profile: fresh app state, profile picker, Home with the Investments tab.
+appId: com.mapcue.demoapp
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "(.*/)?screen.profile"
+    timeout: 30000
+- tapOn:
+    id: "(.*/)?profile.investor"
+- extendedWaitUntil:
+    visible:
+      id: "(.*/)?screen.home"
+    timeout: 15000
+- assertVisible:
+    id: "(.*/)?tab.accounts"
+- assertVisible:
+    id: "(.*/)?tab.settings"
+- assertVisible:
+    id: "(.*/)?tab.investments"

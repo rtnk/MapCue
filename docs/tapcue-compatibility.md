@@ -185,3 +185,10 @@ Odtwarzalne skrypty: `docs/spikes/tapcue-smoke/`.
 - Wynik `run` przy sukcesie: `{"success":true,"device_id":…,"commands_executed":3,"message":"Flow executed successfully"}` (3 komendy: wygenerowany flow ma `launchApp`/`back` i `waitForAnimationToEnd`, Maestro liczy też komendę konfiguracji). Bez `env` nie ma `env_vars` (proces bez `MAESTRO_*`).
 - `inspect_screen` na Androidzie zawiera elementy System UI (pasek stanu) przed treścią aplikacji. Normalizacja i odfiltrowanie należą do STEP-03.
 - `ForegroundAppId` nie jest raportowany przez TapCue 0.1.0 (ani MCP, ani `hierarchy`).
+
+## 10. Wyniki STEP-02B (aplikacja MAUI na emulatorze Androida)
+
+- Aplikacja `samples/MapCue.DemoApp` (.NET 10 MAUI, Release APK) na emulatorze API 34 w GitHub Actions (run 40335436029). Flow TapCue 0.1.0 (`test --test-output-dir`) PASS: `setup-basic` 13 s, `setup-investor` 11 s, `setup-basic-empty` 16 s, `tour-basic` 38 s, `tour-investor` 26 s (czas Maestro, bez startu JVM).
+- **MAUI `AutomationId` na Androidzie to `resource-id`** `<applicationId>:id/<AutomationId>`, a `accessibilityText` zostaje pusty (confirmed, hierarchia). Pierwszy run z selektorami tekstowymi (`tapOn: "profile.basic"`) dał `Assertion is false` dla wszystkich flow. Działa `id: "(.*/)?<AutomationId>"` (regex całego `resource-id`). MapCue kluczuje więc elementy MAUI po `resource-id` (siła `ResourceId`). MAUI dodaje też własne `resource-id` kontenerów (`navigation_layout`, `navigationlayout_content`, `nav_host`, `action_bar_root`).
+- `assertVisible` z regexem `'Delete this account\?'` i `tapOn: "(?i)cancel"` działają na `AlertDialog` (wielkości liter przycisku nie sprawdzano, stąd `(?i)`).
+- `back` na stronie modalnej z `OnBackButtonPressed() => true` nie zamyka jej (blokada w demo app).

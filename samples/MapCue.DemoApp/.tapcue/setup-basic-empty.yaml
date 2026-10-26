@@ -1,0 +1,24 @@
+# Setup of the "basic" profile in the empty-accounts scenario: the accounts list has no rows.
+appId: com.mapcue.demoapp
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "(.*/)?screen.profile"
+    timeout: 30000
+- tapOn:
+    id: "(.*/)?scenario.empty"
+- tapOn:
+    id: "(.*/)?profile.basic"
+- extendedWaitUntil:
+    visible:
+      id: "(.*/)?screen.home"
+    timeout: 15000
+- tapOn:
+    id: "(.*/)?tab.accounts"
+- assertVisible:
+    id: "(.*/)?screen.accounts"
+- assertVisible:
+    id: "(.*/)?accounts.empty"
+- assertNotVisible: "Everyday account.*"
