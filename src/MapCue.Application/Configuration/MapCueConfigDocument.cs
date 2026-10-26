@@ -23,6 +23,14 @@ public sealed class MapCueConfigDocument
 
     /// <summary>Operator policy rules (STEP-04).</summary>
     public PolicyDocument? Policy { get; set; }
+
+    /// <summary>Screen identity hints (STEP-05).</summary>
+    public IdentityDocument? Identity { get; set; }
+}
+
+public sealed class IdentityDocument
+{
+    public List<string>? ScreenHints { get; set; }
 }
 
 public sealed class AllowlistDocument
@@ -88,6 +96,8 @@ public sealed class AgentDocument
     public string? Timeout { get; set; }
 
     public string? ApiKey { get; set; }
+
+    public string? Reasoner { get; set; }
 }
 
 public sealed class PolicyDocument
@@ -123,6 +133,8 @@ public sealed class ProfileDocument
     public Dictionary<string, string>? Inputs { get; set; }
 
     public List<string>? Capabilities { get; set; }
+
+    public string? SetupFlow { get; set; }
 }
 
 public sealed class TapcueDocument

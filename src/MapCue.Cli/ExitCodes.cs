@@ -22,4 +22,10 @@ public static class ExitCodes
 
     /// <summary>The workspace is locked by another MapCue process or its database schema is newer or changed.</summary>
     public const int WorkspaceUnavailable = 6;
+
+    /// <summary><c>mapcue explore</c>: the run did not start (preflight: device, setup flow, app in the foreground, secrets).</summary>
+    public const int PreflightFailed = 7;
+
+    /// <summary><c>mapcue explore</c>: the run stopped on an error or was cancelled by the operator.</summary>
+    public const int RunFailed = 8;
 }

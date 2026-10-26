@@ -29,7 +29,6 @@ public class CommandTests
     }
 
     [Theory]
-    [InlineData("STEP-05", "status")]
     [InlineData("STEP-09", "blocked")]
     [InlineData("STEP-09", "resume", "task_0001", "--approve", "stateChanging")]
     [InlineData("STEP-10", "report")]
@@ -64,14 +63,6 @@ public class CommandTests
         var (exitCode, _, error, _) = await CliTestHarness.RunAsync(args);
         Assert.Equal(ExitCodes.UsageError, exitCode);
         Assert.NotEqual(string.Empty, error);
-    }
-
-    [Fact]
-    public async Task Explore_with_valid_config_is_not_implemented_yet()
-    {
-        var (exitCode, _, error, _) = await CliTestHarness.RunAsync("explore", "--config", CliTestHarness.RepoFile("docs/examples/mapcue.example.yaml"));
-        Assert.Equal(ExitCodes.NotImplemented, exitCode);
-        Assert.Equal("mapcue explore: not implemented (planned in STEP-05).\n", error);
     }
 
     [Fact]

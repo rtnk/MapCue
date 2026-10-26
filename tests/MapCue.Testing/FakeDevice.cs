@@ -5,22 +5,73 @@ using MapCue.Domain;
 
 namespace MapCue.Testing;
 
-/// <summary>A screen of the simulated application.</summary>
-public sealed record FakeScreen(string Id, IReadOnlyList<FakeElement> Elements);
+/// <summary>How a tap moves through the navigation stack of the simulated app.</summary>
+public enum FakeNavigation
+{
+    /// <summary>Opens the target on top of the current screen (back returns).</summary>
+    Push,
 
-/// <summary>A tappable element. Tapping navigates to <see cref="TargetScreenId"/> when set.</summary>
-public sealed record FakeElement(string ResourceId, string Text, string? TargetScreenId = null);
+    /// <summary>Replaces the current screen in place (e.g. a tab bar swapping content; back does not return).</summary>
+    Replace,
 
-/// <summary>Deterministic model of an application: screens and tap transitions.</summary>
+    /// <summary>Closes the current screen (like back; the target is ignored).</summary>
+    Pop,
+
+    /// <summary>Clears the stack and shows the target as the root.</summary>
+    Root,
+}
+
+/// <summary>
+/// A screen of the simulated application. <see cref="Package"/> overrides the app package (e.g. the launcher). A screen with
+/// <see cref="AdvanceAfterObservations"/> is transient (loading): after that many observations it becomes <see cref="AdvanceTo"/>.
+/// <see cref="IgnoresBack"/> models a popup that cannot be dismissed with back.
+/// </summary>
+public sealed record FakeScreen(string Id, IReadOnlyList<FakeElement> Elements)
+{
+    public string? Package { get; init; }
+
+    public int AdvanceAfterObservations { get; init; }
+
+    public string? AdvanceTo { get; init; }
+
+    public bool IgnoresBack { get; init; }
+}
+
+/// <summary>
+/// An element. Tapping navigates to <see cref="TargetScreenId"/> when set (how: <see cref="Navigation"/>); <see cref="Navigation"/>
+/// <see cref="FakeNavigation.Pop"/> closes the screen. Resource ids are reported as written (an empty one as none, like a MAUI list row
+/// without <c>AutomationId</c>).
+/// </summary>
+public sealed record FakeElement(string ResourceId, string Text, string? TargetScreenId = null)
+{
+    public FakeNavigation Navigation { get; init; } = FakeNavigation.Push;
+
+    public string ClassName { get; init; } = "android.widget.Button";
+
+    public bool Clickable { get; init; } = true;
+
+    public string? AccessibilityText { get; init; }
+}
+
+/// <summary>
+/// Deterministic model of an application: screens and tap transitions. <see cref="LauncherScreenId"/> is shown when back leaves the
+/// root screen (the app is left); <see cref="SetupScreenId"/> is where a setup flow (<see cref="FakeDevice.RunFlowAsync"/>) lands.
+/// </summary>
 public sealed record FakeAppModel(string AppId, string StartScreenId, IReadOnlyList<FakeScreen> Screens)
 {
+    public string? LauncherScreenId { get; init; }
+
+    public string? SetupScreenId { get; init; }
+
     public FakeScreen Screen(string id) =>
         Screens.FirstOrDefault(s => s.Id == id) ?? throw new KeyNotFoundException($"Unknown fake screen '{id}'.");
 }
 
 /// <summary>
-/// Minimal in-memory <see cref="IDeviceAutomation"/> for tests (no device, no TapCue).
-/// Supports tap navigation and back; other action types are rejected. Flow commands are not supported.
+/// In-memory <see cref="IDeviceAutomation"/> for tests (no device, no TapCue): tap navigation (push, replace, pop, root), back
+/// (leaves the app from the root screen when the model has a launcher), <c>launchApp</c> (fresh start), setup flows (land on
+/// <see cref="FakeAppModel.SetupScreenId"/>) and transient loading screens. Other action types are rejected.
+/// Elements are matched by resource id, else by exact text or accessibility text, like the TapCue selectors MapCue generates.
 /// </summary>
 public sealed class FakeDevice : IDeviceAutomation
 {
@@ -28,6 +79,8 @@ public sealed class FakeDevice : IDeviceAutomation
     private readonly IClock _clock;
     private readonly Stack<string> _history = new();
     private readonly List<ValidatedDeviceAction> _executed = [];
+    private readonly List<string> _flows = [];
+    private int _observationsOnScreen;
 
     public FakeDevice(FakeAppModel app, IClock clock, string deviceId = "fake-emulator-1", Platform platform = Platform.Android)
     {
@@ -44,6 +97,15 @@ public sealed class FakeDevice : IDeviceAutomation
     public string CurrentScreenId { get; private set; }
 
     public IReadOnlyList<ValidatedDeviceAction> ExecutedActions => _executed;
+
+    /// <summary>Paths of the setup flows run so far.</summary>
+    public IReadOnlyList<string> FlowsRun => _flows;
+
+    /// <summary>Number of observations served.</summary>
+    public int Observations { get; private set; }
+
+    /// <summary>When set, <see cref="ExecuteAsync"/> returns this outcome for actions on that resource id (fault injection).</summary>
+    public Dictionary<string, ActionOutcome> Faults { get; } = new(StringComparer.Ordinal);
 
     public Task<ToolVersion> GetVersionAsync(CancellationToken ct)
     {
@@ -62,11 +124,18 @@ public sealed class FakeDevice : IDeviceAutomation
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
         EnsureDevice(device);
+        Observations++;
         var screen = _app.Screen(CurrentScreenId);
+        if (screen.AdvanceTo is not null && ++_observationsOnScreen > screen.AdvanceAfterObservations)
+        {
+            Show(screen.AdvanceTo);
+            screen = _app.Screen(CurrentScreenId);
+        }
+
         var elements = screen.Elements
-            .Select(e => new RawElement(e.ResourceId, e.Text, null, "android.widget.Button", Clickable: true, Enabled: true))
+            .Select(e => new RawElement(string.IsNullOrEmpty(e.ResourceId) ? null : e.ResourceId, e.Text, e.AccessibilityText, e.ClassName, Clickable: e.Clickable, Enabled: true))
             .ToList();
-        return Task.FromResult(new RawObservation(device, _app.AppId, elements, HashOf(screen), _clock.UtcNow));
+        return Task.FromResult(new RawObservation(device, screen.Package ?? _app.AppId, elements, HashOf(screen), _clock.UtcNow));
     }
 
     public Task<ActionExecution> ExecuteAsync(DeviceId device, ValidatedDeviceAction action, CancellationToken ct)
@@ -75,43 +144,108 @@ public sealed class FakeDevice : IDeviceAutomation
         ct.ThrowIfCancellationRequested();
         EnsureDevice(device);
         _executed.Add(action);
+        if (action.TargetResourceId is { } faulty && Faults.TryGetValue(faulty, out var fault))
+        {
+            return Result(action, fault, "injected fault", dispatched: fault is ActionOutcome.OutcomeUnknown);
+        }
 
         switch (action.Type)
         {
             case ActionType.Tap:
-                var element = _app.Screen(CurrentScreenId).Elements.FirstOrDefault(e => e.ResourceId == action.TargetResourceId);
+                var element = _app.Screen(CurrentScreenId).Elements.FirstOrDefault(e => e.Clickable && Matches(e, action));
                 if (element is null)
                 {
                     return Result(action, ActionOutcome.Failed, "element not found");
                 }
 
-                if (element.TargetScreenId is not null)
+                Navigate(element);
+                return Result(action, ActionOutcome.Succeeded, null);
+            case ActionType.Back:
+                if (_app.Screen(CurrentScreenId).IgnoresBack)
                 {
-                    _history.Push(CurrentScreenId);
-                    CurrentScreenId = _app.Screen(element.TargetScreenId).Id;
+                    return Result(action, ActionOutcome.Succeeded, null);
+                }
+
+                if (_history.Count > 0)
+                {
+                    Show(_history.Pop());
+                }
+                else if (_app.LauncherScreenId is { } launcher)
+                {
+                    Show(launcher);
                 }
 
                 return Result(action, ActionOutcome.Succeeded, null);
-            case ActionType.Back:
-                if (_history.Count > 0)
-                {
-                    CurrentScreenId = _history.Pop();
-                }
-
+            case ActionType.LaunchApp:
+                _history.Clear();
+                Show(_app.StartScreenId);
                 return Result(action, ActionOutcome.Succeeded, null);
             default:
                 return Result(action, ActionOutcome.Rejected, $"{action.Type} is not supported by FakeDevice");
         }
     }
 
-    public Task<FlowRunResult> RunFlowAsync(DeviceId device, FlowFile flow, FlowRunOptions options, CancellationToken ct) =>
-        Task.FromResult(new FlowRunResult(ActionOutcome.Rejected, TimeSpan.Zero, "flows are not supported by FakeDevice"));
+    /// <summary>A setup flow: when the model has <see cref="FakeAppModel.SetupScreenId"/>, a fresh start that lands there.</summary>
+    public Task<FlowRunResult> RunFlowAsync(DeviceId device, FlowFile flow, FlowRunOptions options, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(flow);
+        ct.ThrowIfCancellationRequested();
+        EnsureDevice(device);
+        if (_app.SetupScreenId is null)
+        {
+            return Task.FromResult(new FlowRunResult(ActionOutcome.Rejected, TimeSpan.Zero, "flows are not supported by this fake app"));
+        }
+
+        _flows.Add(flow.Path);
+        _history.Clear();
+        Show(_app.SetupScreenId);
+        return Task.FromResult(new FlowRunResult(ActionOutcome.Succeeded, TimeSpan.Zero, null));
+    }
 
     public Task<SyntaxCheckResult> CheckSyntaxAsync(FlowFile flow, CancellationToken ct) =>
         Task.FromResult(new SyntaxCheckResult(false, ["flows are not supported by FakeDevice"]));
 
-    private static Task<ActionExecution> Result(ValidatedDeviceAction action, ActionOutcome outcome, string? detail) =>
-        Task.FromResult(new ActionExecution(action.ActionId, outcome, TimeSpan.Zero, detail));
+    private static bool Matches(FakeElement element, ValidatedDeviceAction action) =>
+        !string.IsNullOrEmpty(action.TargetResourceId)
+            ? element.ResourceId == action.TargetResourceId && (action.TargetText is null || TextMatches(element, action.TargetText))
+            : action.TargetText is { } text && TextMatches(element, text);
+
+    // Like a Maestro text selector: the visible text or the accessibility text.
+    private static bool TextMatches(FakeElement element, string text) => element.Text == text || element.AccessibilityText == text;
+
+    private void Navigate(FakeElement element)
+    {
+        switch (element.Navigation)
+        {
+            case FakeNavigation.Pop:
+                if (_history.Count > 0)
+                {
+                    Show(_history.Pop());
+                }
+
+                break;
+            case FakeNavigation.Root when element.TargetScreenId is not null:
+                _history.Clear();
+                Show(element.TargetScreenId);
+                break;
+            case FakeNavigation.Replace when element.TargetScreenId is not null:
+                Show(element.TargetScreenId);
+                break;
+            case FakeNavigation.Push when element.TargetScreenId is not null:
+                _history.Push(CurrentScreenId);
+                Show(element.TargetScreenId);
+                break;
+        }
+    }
+
+    private void Show(string screenId)
+    {
+        CurrentScreenId = _app.Screen(screenId).Id;
+        _observationsOnScreen = 0;
+    }
+
+    private static Task<ActionExecution> Result(ValidatedDeviceAction action, ActionOutcome outcome, string? detail, bool dispatched = true) =>
+        Task.FromResult(new ActionExecution(action.ActionId, outcome, TimeSpan.Zero, detail, Dispatched: dispatched && outcome != ActionOutcome.Rejected));
 
     private static string HashOf(FakeScreen screen)
     {

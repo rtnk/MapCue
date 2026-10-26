@@ -480,6 +480,26 @@ internal sealed class SqliteFrontierRepository(SqliteConnection connection, Sqli
             ? await QueryAsync($"SELECT {AttemptColumns} FROM task_attempts ORDER BY task_id, n", MapAttempt, ct)
             : await QueryAsync($"SELECT {AttemptColumns} FROM task_attempts WHERE task_id = $task ORDER BY n", MapAttempt, ct, ("$task", taskId));
 
+    public async Task<bool> InsertTaskActionIfAbsentAsync(TaskAction action, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        return await ExecuteAsync(
+            "INSERT INTO task_actions (task_id, action_json, element_key, expected_identity_hash, created_at) VALUES ($task, $action, $key, $hash, $at) ON CONFLICT(task_id) DO NOTHING",
+            ct,
+            ("$task", action.TaskId),
+            ("$action", Db.Json(action.Action)),
+            ("$key", action.ElementKey),
+            ("$hash", action.ExpectedIdentityHash),
+            ("$at", Db.Time(action.CreatedAt))) == 1;
+    }
+
+    public Task<TaskAction?> GetTaskActionAsync(string taskId, CancellationToken ct) =>
+        SingleOrDefaultAsync(
+            "SELECT task_id, action_json, element_key, expected_identity_hash, created_at FROM task_actions WHERE task_id = $task",
+            r => new TaskAction(r.GetString(0), Db.ReadJson<ValidatedDeviceAction>(r, 1), Db.ReadStringOrNull(r, 2), r.GetString(3), Db.ReadTime(r, 4)),
+            ct,
+            ("$task", taskId));
+
     public Task InsertCheckpointAsync(Checkpoint checkpoint, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
@@ -665,4 +685,71 @@ internal sealed class SqliteAgentCallRepository(SqliteConnection connection, Sql
             Db.ReadStringOrNull(r, 17) is { } cost ? decimal.Parse(cost, System.Globalization.CultureInfo.InvariantCulture) : null,
             r.GetInt64(18),
             Db.ReadTime(r, 19));
+}
+
+internal sealed class SqliteRunRepository(SqliteConnection connection, SqliteTransaction transaction) : SqliteRepository(connection, transaction), IRunRepository
+{
+    private const string Columns = "run_id, profile_id, context_id, device_id, reasoner, config_hash, seed, status, finish_reason, detail, counters_json, started_at, ended_at";
+
+    public Task InsertAsync(ExplorationRun run, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        return ExecuteAsync(
+            $"INSERT INTO runs ({Columns}) VALUES ($id, $profile, $ctx, $device, $reasoner, $config, $seed, $status, $reason, $detail, $counters, $started, $ended)",
+            ct,
+            Parameters(run));
+    }
+
+    public async Task UpdateAsync(ExplorationRun run, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var rows = await ExecuteAsync(
+            """
+            UPDATE runs SET context_id = $ctx, device_id = $device, status = $status, finish_reason = $reason, detail = $detail, counters_json = $counters,
+                ended_at = $ended
+            WHERE run_id = $id
+            """,
+            ct,
+            Parameters(run));
+        SqliteGraphRepository.EnsureOne(rows, "run", run.RunId);
+    }
+
+    public Task<ExplorationRun?> GetAsync(string runId, CancellationToken ct) =>
+        SingleOrDefaultAsync($"SELECT {Columns} FROM runs WHERE run_id = $id", Map, ct, ("$id", runId));
+
+    public Task<ExplorationRun?> GetLatestAsync(CancellationToken ct) =>
+        SingleOrDefaultAsync($"SELECT {Columns} FROM runs ORDER BY started_at DESC, run_id DESC LIMIT 1", Map, ct);
+
+    private static (string, object?)[] Parameters(ExplorationRun run) =>
+    [
+        ("$id", run.RunId),
+        ("$profile", run.ProfileId),
+        ("$ctx", run.ContextId),
+        ("$device", run.DeviceId),
+        ("$reasoner", run.Reasoner),
+        ("$config", run.ConfigHash),
+        ("$seed", run.Seed),
+        ("$status", run.Status.ToString()),
+        ("$reason", run.FinishReason?.ToString()),
+        ("$detail", run.Detail),
+        ("$counters", Db.Json(run.Counters)),
+        ("$started", Db.Time(run.StartedAt)),
+        ("$ended", Db.Time(run.EndedAt)),
+    ];
+
+    private static ExplorationRun Map(SqliteDataReader r) =>
+        new(
+            r.GetString(0),
+            r.GetString(1),
+            Db.ReadStringOrNull(r, 2),
+            Db.ReadStringOrNull(r, 3),
+            r.GetString(4),
+            r.GetString(5),
+            Db.ReadStringOrNull(r, 6),
+            Db.ReadEnum<RunStatus>(r, 7),
+            Db.ReadEnumOrNull<RunFinishReason>(r, 8),
+            Db.ReadStringOrNull(r, 9),
+            Db.ReadJson<RunCounters>(r, 10),
+            Db.ReadTime(r, 11),
+            Db.ReadTimeOrNull(r, 12));
 }

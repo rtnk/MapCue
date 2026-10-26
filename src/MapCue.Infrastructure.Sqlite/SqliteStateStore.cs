@@ -147,5 +147,7 @@ public sealed class SqliteStateStore : IStateStore, IAsyncDisposable, IDisposabl
         public IEventOutbox Events { get; } = new SqliteEventOutbox(connection, transaction);
 
         public IAgentCallRepository AgentCalls { get; } = new SqliteAgentCallRepository(connection, transaction);
+
+        public IRunRepository Runs { get; } = new SqliteRunRepository(connection, transaction);
     }
 }

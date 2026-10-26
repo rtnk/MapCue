@@ -38,3 +38,47 @@ public static class SystemUiRules
         _ => [],
     };
 }
+
+/// <summary>
+/// Layout containers a UI framework adds to every screen (architecture §7.1, R-04). They are stable but carry no screen identity:
+/// as identity anchors they make unrelated screens look alike (on the STEP-02B MAUI recordings they were 6 of the 12 identity
+/// tokens of Home, which put Accounts above <c>τ_screen</c>). Non-interactive elements with these resource ids stay in the element
+/// set and the layout but are not identity anchors (fingerprint version 2). Matching is by the resource id entry name
+/// (<c>&lt;package&gt;:id/&lt;name&gt;</c>) or by the full id.
+/// </summary>
+public static class FrameworkContainerRules
+{
+    /// <summary>Full Android resource ids of framework containers.</summary>
+    public static IReadOnlySet<string> AndroidResourceIds { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "android:id/content",
+    };
+
+    /// <summary>
+    /// Entry names of .NET MAUI containers under the app package (confirmed on the STEP-02B emulator recordings,
+    /// docs/tapcue-compatibility.md §10).
+    /// </summary>
+    public static IReadOnlySet<string> AndroidEntryNames { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "action_bar_root",
+        "nav_host",
+        "navigation_layout",
+        "navigationlayout_content",
+    };
+
+    public static bool IsFrameworkContainer(Platform platform, string? resourceId)
+    {
+        if (platform != Platform.Android || resourceId is null)
+        {
+            return false;
+        }
+
+        if (AndroidResourceIds.Contains(resourceId))
+        {
+            return true;
+        }
+
+        var index = resourceId.IndexOf(":id/", StringComparison.Ordinal);
+        return index > 0 && AndroidEntryNames.Contains(resourceId[(index + 4)..]);
+    }
+}

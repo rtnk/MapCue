@@ -111,4 +111,55 @@ public class ScreenIdentityResolverTests
         Assert.Equal(0.5, ScreenIdentityResolver.Jaccard(["a", "a"], ["a"]));
         Assert.Equal(1.0 / 3, ScreenIdentityResolver.Jaccard(["a", "b"], ["b", "c"]), 6);
     }
+
+    private static readonly ScreenIdentityResolver _hinted = new(IdentityResolverOptions.Default with
+    {
+        ScreenHints = [new System.Text.RegularExpressions.Regex(@":id/screen\.[a-z]+$", System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100))],
+    });
+
+    [Fact]
+    public void Screen_hints_keep_similar_screens_with_different_markers_apart()
+    {
+        // 6 shared tab tokens + one marker each: Jaccard 6/8 = 0.75 ≥ τ_screen, so without hints it would be the same screen.
+        var home = Snapshot([.. Tokens(6), "a:id:app:id/screen.home"]);
+        var accounts = Snapshot([.. Tokens(6), "a:id:app:id/screen.accounts"]);
+        Assert.Equal(ResolutionKind.NewStateOfScreen, _resolver.Resolve(accounts, [Known("st_home", "scr_home", home)]).Kind);
+
+        var result = _hinted.Resolve(accounts, [Known("st_home", "scr_home", home)]);
+
+        Assert.Equal(ResolutionKind.NewScreen, result.Kind);
+        Assert.Empty(result.Candidates);
+    }
+
+    [Fact]
+    public void Same_screen_hint_makes_a_dissimilar_snapshot_a_state_of_that_screen()
+    {
+        var home = Snapshot([.. Tokens(6), "a:id:app:id/screen.home"]);
+        var homeEmpty = Snapshot([.. Tokens(1, "i:id:app:id/other"), "a:id:app:id/screen.home", "k:empty"]);
+        Assert.Equal(ResolutionKind.NewScreen, _resolver.Resolve(homeEmpty, [Known("st_home", "scr_home", home)]).Kind);
+
+        var result = _hinted.Resolve(homeEmpty, [Known("st_home", "scr_home", home)]);
+
+        Assert.Equal((ResolutionKind.NewStateOfScreen, "scr_home"), (result.Kind, result.ScreenId));
+    }
+
+    [Fact]
+    public void Same_screen_hint_and_similar_tokens_is_a_variant()
+    {
+        var basic = Snapshot([.. Tokens(6), "a:id:app:id/screen.home"]);
+        var investor = Snapshot([.. Tokens(7), "a:id:app:id/screen.home"]);
+
+        var result = _hinted.Resolve(investor, [Known("st_home", "scr_home", basic)]);
+
+        Assert.Equal((ResolutionKind.KnownStateVariant, "st_home"), (result.Kind, result.StateId));
+    }
+
+    [Fact]
+    public void Hints_do_not_change_exact_matches_or_snapshots_without_markers()
+    {
+        var plain = Snapshot(Tokens(9));
+        Assert.Equal(ResolutionKind.KnownState, _hinted.Resolve(plain, [Known("st_a", "scr_a", plain)]).Kind);
+        var similar = Snapshot(Tokens(10));
+        Assert.Equal(ResolutionKind.KnownStateVariant, _hinted.Resolve(similar, [Known("st_a", "scr_a", plain)]).Kind);
+    }
 }

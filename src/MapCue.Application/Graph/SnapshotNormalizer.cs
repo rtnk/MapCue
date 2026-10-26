@@ -19,13 +19,14 @@ public sealed record NormalizationOptions(Platform Platform, IReadOnlyCollection
 /// and an empty list is a different one. Children are compared as a multiset, not by adjacency, so order never matters.</item>
 /// <item><c>elementKey</c>: resource id, else role + masked label, else role + structural path from the nearest keyed ancestor (weak).</item>
 /// </list>
-/// <c>identityHash</c> covers interactive elements and resource-id anchors outside list rows, list tokens, selected elements and
+/// <c>identityHash</c> covers interactive elements and resource-id anchors (except framework containers) outside list rows, list tokens, selected elements and
 /// state-kind discriminators, as a sorted multiset. <c>layoutHash</c> covers every kept element in order with bounds buckets.
 /// </summary>
 public static partial class SnapshotNormalizer
 {
     /// <summary>Version of the algorithm (rules, masking, list detection, keys). Any change of output requires a new version.</summary>
-    public const int FingerprintVersion = 1;
+    /// <remarks>Version 2 (STEP-05): framework containers (<see cref="FrameworkContainerRules"/>) are no longer identity anchors.</remarks>
+    public const int FingerprintVersion = 2;
 
     public const string CountBucketEmpty = "0";
     public const string CountBucketOne = "1";
@@ -118,7 +119,7 @@ public static partial class SnapshotNormalizer
             {
                 tokens.Add("i:" + node.Key);
             }
-            else if (node.Strength == ElementKeyStrength.ResourceId)
+            else if (node.Strength == ElementKeyStrength.ResourceId && !FrameworkContainerRules.IsFrameworkContainer(options.Platform, node.Raw.ResourceId))
             {
                 tokens.Add("a:" + node.Key);
             }

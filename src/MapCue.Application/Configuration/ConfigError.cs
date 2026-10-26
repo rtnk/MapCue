@@ -30,6 +30,7 @@ public static class ConfigErrorCodes
     public const string InvalidTapCueSetting = "CFG060";
     public const string ForbiddenPassEnvironment = "CFG061";
     public const string InvalidRiskRule = "CFG070";
+    public const string InvalidScreenHint = "CFG080";
 }
 
 public sealed record ConfigValidationResult(MapCueSettings? Settings, IReadOnlyList<ConfigError> Errors)

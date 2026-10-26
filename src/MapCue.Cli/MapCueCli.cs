@@ -2,7 +2,6 @@ using System.CommandLine;
 using System.CommandLine.Help;
 using System.CommandLine.Invocation;
 using System.Reflection;
-using MapCue.Cli.Configuration;
 using MapCue.Cli.Graph;
 using Microsoft.Extensions.Logging;
 
@@ -34,30 +33,8 @@ public static class MapCueCli
             Description = "Path to the MapCue configuration (YAML).",
             DefaultValueFactory = _ => new FileInfo(DefaultConfigPath),
         };
-        var explore = new Command("explore", "Run a budgeted exploration of an allowlisted app (validates the configuration first).");
-        explore.Options.Add(configOption);
-        explore.SetAction(parse =>
-        {
-            var file = parse.GetValue(configOption)!;
-            var result = MapCueConfigLoader.LoadFile(file.FullName);
-            if (!result.IsValid)
-            {
-                var error = parse.InvocationConfiguration.Error;
-                error.WriteLine($"mapcue explore: configuration '{file.Name}' is invalid:");
-                foreach (var e in result.Errors)
-                {
-                    error.WriteLine($"  {e}");
-                }
-
-                logger.LogWarning("Configuration rejected with {ErrorCount} error(s)", result.Errors.Count);
-                return ExitCodes.ConfigInvalid;
-            }
-
-            return NotImplemented(parse, logger, "explore", "STEP-05");
-        });
-        root.Subcommands.Add(explore);
-
-        root.Subcommands.Add(Placeholder("status", "Show the state of the current or last run.", "STEP-05", logger));
+        root.Subcommands.Add(ExploreCommand.Build(host, logger, configOption));
+        root.Subcommands.Add(StatusCommand.Build(host, logger));
         root.Subcommands.Add(Placeholder("blocked", "List tasks blocked and waiting for the operator.", "STEP-09", logger));
 
         var taskArgument = new Argument<string>("taskId") { Description = "Blocked task to resume." };
