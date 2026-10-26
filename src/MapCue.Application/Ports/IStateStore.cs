@@ -22,6 +22,8 @@ public interface IUnitOfWork
     IEventOutbox Events { get; }
 
     IAgentCallRepository AgentCalls { get; }
+
+    IRunRepository Runs { get; }
 }
 
 /// <summary>Contexts, screens, states, variants, snapshots, evidence, candidates, edges, observations and recipes.</summary>
@@ -123,6 +125,11 @@ public interface IFrontierRepository
 
     Task<IReadOnlyList<TaskAttempt>> ListAttemptsAsync(string? taskId, CancellationToken ct);
 
+    /// <summary>Stores the validated action of an <c>ExploreAction</c> task unless one exists. Returns true when inserted.</summary>
+    Task<bool> InsertTaskActionIfAbsentAsync(TaskAction action, CancellationToken ct);
+
+    Task<TaskAction?> GetTaskActionAsync(string taskId, CancellationToken ct);
+
     Task InsertCheckpointAsync(Checkpoint checkpoint, CancellationToken ct);
 
     Task<Checkpoint?> GetLatestCheckpointAsync(string runId, CancellationToken ct);
@@ -150,4 +157,24 @@ public interface IAgentCallRepository
 
     /// <summary>Usage of every recorded call (budgets resume from it).</summary>
     Task<AgentUsageTotals> GetUsageTotalsAsync(CancellationToken ct);
+}
+
+/// <summary>
+/// The validated action an <c>ExploreAction</c> task executes (STEP-05). It is what the reasoner proposed and MapCue validated
+/// (ADR-0004), stored so the task (and navigation over its edge) does not depend on the reasoner session. <see cref="ElementKey"/> and
+/// <see cref="ExpectedIdentityHash"/> feed the pre-execution check (architecture §9.3 step 6).
+/// </summary>
+public sealed record TaskAction(string TaskId, ValidatedDeviceAction Action, string? ElementKey, string ExpectedIdentityHash, DateTimeOffset CreatedAt);
+
+/// <summary>Exploration runs (architecture §5.4).</summary>
+public interface IRunRepository
+{
+    Task InsertAsync(ExplorationRun run, CancellationToken ct);
+
+    Task UpdateAsync(ExplorationRun run, CancellationToken ct);
+
+    Task<ExplorationRun?> GetAsync(string runId, CancellationToken ct);
+
+    /// <summary>The most recently started run (ties broken by id), or null.</summary>
+    Task<ExplorationRun?> GetLatestAsync(CancellationToken ct);
 }

@@ -23,3 +23,6 @@ coverage*.xml
 .env
 .env.*
 *.local.yaml
+
+# Demo exploration workspace (samples/MapCue.DemoApp/mapcue.demo.yaml)
+.mapcue-demo/

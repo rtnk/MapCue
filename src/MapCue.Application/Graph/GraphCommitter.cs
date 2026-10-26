@@ -14,7 +14,8 @@ public sealed record ActionSpec(ActionType Type, string CanonicalSelector, strin
 /// <summary>
 /// Everything one attempt produced. Artifacts of <see cref="Before"/>/<see cref="After"/> are already stored.
 /// <see cref="AttemptId"/> makes the commit idempotent. An attempt journaled earlier keeps its number; otherwise the commit
-/// numbers it after the existing attempts of its task.
+/// numbers it after the existing attempts of its task. <see cref="AttemptEvidence"/> is stored evidence of the attempt that is not a
+/// graph snapshot (tool output, or the screen outside the app after the action left it); it is recorded with the attempt id.
 /// </summary>
 public sealed record AttemptCommit(
     ExplorationContext Context,
@@ -25,7 +26,13 @@ public sealed record AttemptCommit(
     TimeSpan Duration,
     RecordedSnapshot? After,
     int Depth = 0,
-    string ReasonerPromptVersion = GraphCommitter.NoReasonerPromptVersion);
+    string ReasonerPromptVersion = GraphCommitter.NoReasonerPromptVersion)
+{
+    public IReadOnlyList<Evidence> AttemptEvidence { get; init; } = [];
+}
+
+/// <summary>An accepted action to explore from a state: its graph spec, the validated device action and the pre-execution check data.</summary>
+public sealed record ScheduledAction(ActionSpec Spec, ValidatedDeviceAction Action, string? ElementKey, string ExpectedIdentityHash, int Priority = 0);
 
 /// <summary>Result of an observation commit.</summary>
 public sealed record ObservationCommitResult(string StateId, string ScreenId, ResolutionKind Resolution, bool NewState, bool NewVariant, int NewTasks);
@@ -144,6 +151,14 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
         await uow.Graph.InsertObservationIfAbsentAsync(
             new ActionObservation(commit.AttemptId, edge.EdgeId, context.ContextId, from.SnapshotId, to?.SnapshotId, target?.StateId, commit.Outcome, (long)commit.Duration.TotalMilliseconds, now),
             ct);
+        foreach (var evidence in commit.AttemptEvidence)
+        {
+            // Evidence of an attempt is keyed by the attempt, so identical content (e.g. the same launcher screen) is kept per attempt.
+            await uow.Graph.InsertEvidenceIfAbsentAsync(
+                evidence with { EvidenceId = Evidence.IdOf(evidence.Kind, evidence.ArtifactSha256, context.ContextId, commit.AttemptId), AttemptId = commit.AttemptId, ContextId = context.ContextId },
+                ct);
+        }
+
         await AppendAsync(uow, GraphEventTypes.EdgeObserved, now, context, edge.EdgeId, new() { ["attemptId"] = commit.AttemptId, ["outcome"] = commit.Outcome.ToString(), ["toStateId"] = target?.StateId }, ct);
 
         // The explore task of this (state, action, context) is completed by this attempt; a later identical pair never re-creates it.
@@ -186,6 +201,43 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
         var newStates = new[] { from, to }.Where(p => p is { NewState: true }).Select(p => p!.StateId).Distinct(StringComparer.Ordinal).ToList();
         var newVariants = new[] { from, to }.Count(p => p is { NewVariant: true });
         return new AttemptCommitResult(false, from.StateId, target?.StateId, edge.EdgeId, edge.Status, newStates, newVariants, newTasks);
+    }
+
+    /// <summary>
+    /// Schedules <c>ExploreAction</c> tasks for accepted actions of a state, each with its validated action, in one transaction
+    /// (<c>ON CONFLICT DO NOTHING</c>: a known (state, action, context) pair is never scheduled twice, architecture §7.4).
+    /// Returns the number of new tasks.
+    /// </summary>
+    public Task<int> ScheduleActionsAsync(ExplorationContext context, string fromStateId, int depth, IReadOnlyList<ScheduledAction> actions, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(actions);
+        return store.InTransactionAsync(
+            async uow =>
+            {
+                var now = clock.UtcNow;
+                var created = 0;
+                foreach (var scheduled in actions)
+                {
+                    var spec = scheduled.Spec;
+                    await uow.Graph.InsertCandidateIfAbsentAsync(
+                        new ActionCandidate(fromStateId, spec.ActionKey, spec.Type, spec.CanonicalSelector, spec.ParamClass, spec.Source, spec.Risk, CandidateStatus.Scheduled, now),
+                        ct);
+                    var key = TaskKeys.ExploreAction(fromStateId, spec.ActionKey, context);
+                    var task = NewTask(key, TaskType.ExploreAction, context, fromStateId, spec.ActionKey, depth, now) with { Priority = scheduled.Priority };
+                    if (!await uow.Frontier.InsertTaskIfAbsentAsync(task, ct))
+                    {
+                        continue;
+                    }
+
+                    await uow.Frontier.InsertTaskActionIfAbsentAsync(new TaskAction(task.TaskId, scheduled.Action, scheduled.ElementKey, scheduled.ExpectedIdentityHash, now), ct);
+                    await AppendAsync(uow, GraphEventTypes.TaskCreated, now, context, task.TaskId, new() { ["type"] = task.Type.ToString(), ["status"] = task.Status.ToString(), ["actionKey"] = spec.ActionKey }, ct);
+                    created++;
+                }
+
+                return created;
+            },
+            ct);
     }
 
     private sealed record Placement(string StateId, string ScreenId, string SnapshotId, ResolutionKind Resolution, bool NewState, bool NewVariant);

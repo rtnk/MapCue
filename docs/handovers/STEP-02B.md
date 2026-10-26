@@ -4,7 +4,7 @@
 
 - Status: **DONE** (zakres ROADMAP STEP-02B zrealizowany; APK i flow na emulatorze PASS w CI; build iOS FAIL z powodu wersji Xcode na runnerze, opis niżej; ROADMAP dopuszcza „iOS: build na macOS albo NOT RUN”). Merge wykonuje Robert.
 - Branch: `claude/step-02b-demo-app-wm0b88` (prompt etapu wskazywał `feat/step-02b-demo-app`; środowisko sesji wyznacza ten branch)
-- PR URL i status: <https://github.com/rtnk/MapCue/pull/7> (open, czeka na review i merge)
+- PR URL i status: <https://github.com/rtnk/MapCue/pull/7> (merged 2026-10-26 16:22 UTC, merge commit `b99b195`; zaktualizowane w STEP-05)
 - Commit SHA: kod i flow `2a08fcc` (zweryfikowany w CI: runy 40335436029 `Demo app` i 40335435627 `CI`); ten handoff jest w kolejnym commicie na tym samym branchu, więc aktualny head jest w PR.
 - Base branch/SHA: `main` @ `2f38076ad3314133d125e9a21aa8b828dca2d168` (merge PR #6; CI na `main`: success, run 40299299229)
 - Data i środowisko: 2026-10-26. Sesja agenta: kontener Linux x86_64 (Ubuntu 24.04), .NET SDK 10.0.113 (pakiet Ubuntu), Java 17, TapCue 0.1.0 (archiwum Release, SHA-256 przypięte), bez workloadów MAUI, Android SDK i urządzenia (`dl.google.com`: 403 przez proxy, R-09). Build APK i flow: GitHub Actions `ubuntu-24.04` (setup-dotnet z `global.json`, workload `maui-android`, Zulu JDK 17, emulator API 34 `google_apis` x86_64 z KVM).
@@ -86,7 +86,7 @@
 
 ## Stan roadmapy
 
-- STEP-00…04: zmergowane. STEP-02B: PR #7 otwarty. Statusy, decyzja 1, R-10 i macierz platform w `docs/ROADMAP.md` zaktualizowane.
+- STEP-00…04: zmergowane. STEP-02B: PR #7 zmergowany (zaktualizowane w STEP-05). Statusy, decyzja 1, R-10 i macierz platform w `docs/ROADMAP.md` zaktualizowane.
 - Następny: STEP-05 (zależy od 02, 02B, 03, 04), po merge tego PR.
 
 ## Warunki startu STEP-05

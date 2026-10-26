@@ -192,3 +192,15 @@ Odtwarzalne skrypty: `docs/spikes/tapcue-smoke/`.
 - **MAUI `AutomationId` na Androidzie to `resource-id`** `<applicationId>:id/<AutomationId>`, a `accessibilityText` zostaje pusty (confirmed, hierarchia). Pierwszy run z selektorami tekstowymi (`tapOn: "profile.basic"`) dał `Assertion is false` dla wszystkich flow. Działa `id: "(.*/)?<AutomationId>"` (regex całego `resource-id`). MapCue kluczuje więc elementy MAUI po `resource-id` (siła `ResourceId`). MAUI dodaje też własne `resource-id` kontenerów (`navigation_layout`, `navigationlayout_content`, `nav_host`, `action_bar_root`).
 - `assertVisible` z regexem `'Delete this account\?'` i `tapOn: "(?i)cancel"` działają na `AlertDialog` (wielkości liter przycisku nie sprawdzano, stąd `(?i)`).
 - `back` na stronie modalnej z `OnBackButtonPressed() => true` nie zamyka jej (blokada w demo app).
+
+## 11. Wyniki STEP-05 (eksploracja MapCue na emulatorze Androida)
+
+Środowisko jak w §10: GitHub Actions `ubuntu-24.04` z KVM, emulator API 34 `google_apis` x86_64, TapCue 0.1.0, Zulu JDK 17. Wejście: APK demo app z tego samego runu. Uruchomienie: `mapcue explore --config samples/MapCue.DemoApp/mapcue.demo.yaml --device emulator-5554 --seed demo` (`run-explore.sh`, job `android-explore`), run 40363853291, commit `9bd464c`.
+
+- **Wynik:** `Exhausted` po 268 s; 7 stanów (Home, Accounts, Details, What's new, Settings, Verify, Profile) i 7 ekranów, 26 krawędzi; 25/25 przejść `expected-graph.md` dostępnych dla profilu `basic` przy domyślnej polityce (`compare-expected.py`). Akcje ryzykowne (`details.delete`, `verify.sendcode`, `verify.signout`, przełączniki, `profile.investor`) zostały pominięte przez politykę.
+- **Akcje i sesje:** 26 prób, 9 kroków nawigacji, 5 resetów przez `setup-basic.yaml`, 6 sesji MCP (każdy `tapcue test` zamyka sesję MCP, R-03). Nie było `DriverLost` ani `OutcomeUnknown`.
+- **Selektory MapCue** działają na MAUI: `tapOn` z `id` (regex całego `resource-id`) oraz z tekstem dla wierszy bez `AutomationId` i dla przycisku paska nawigacji „Navigate up” (tekst z `content-desc`).
+- **`inspect_screen`** (fast) daje te same tokeny tożsamości co hierarchia CLI dla Home, What's new, Settings i Profile: identyfikatory stanów są takie same jak w modelu `FakeDemoApp` w testach. Accounts, Details i Verify różnią się od modelu (struktura listy, teksty), ale są stabilne między obserwacjami.
+- **`back` na ekranach głównych** prowadzi do launchera (`com.google.android.apps.nexuslauncher`), co MapCue wykrywa po pakietach `resource-id` (4 krawędzie `executed` bez celu). `back` na Verify nie zmienia ekranu.
+- **Strona ładowania** (1500 ms) nie stała się stanem: stabilizacja czeka, aż zniknie wskaźnik.
+- Raport, `status.txt`, `explore.log.jsonl` i workspace (SQLite, bloby, `runs/`) są w artefakcie `demo-android-explore`.

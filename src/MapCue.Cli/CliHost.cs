@@ -1,3 +1,4 @@
+using MapCue.Adapters.TapCue;
 using MapCue.Application.Ports;
 using MapCue.Application.Time;
 using MapCue.Infrastructure.Artifacts.Logging;
@@ -17,10 +18,16 @@ public sealed class CliHost : IDisposable
     private readonly ILoggerFactory _loggerFactory;
     private readonly IReadOnlyDictionary<string, string>? _environment;
 
-    public CliHost(TextWriter logWriter, IClock? clock = null, LogLevel? minimumLevel = null, IReadOnlyDictionary<string, string>? environment = null)
+    public CliHost(
+        TextWriter logWriter,
+        IClock? clock = null,
+        LogLevel? minimumLevel = null,
+        IReadOnlyDictionary<string, string>? environment = null,
+        Func<TapCueAdapterOptions, Func<string, string?>, IDeviceAutomation>? deviceFactory = null)
     {
         ArgumentNullException.ThrowIfNull(logWriter);
         _environment = environment;
+        DeviceFactory = deviceFactory;
         Clock = clock ?? new SystemClock();
         Redactor = new PatternRedactor();
         var level = minimumLevel ?? ParseLevel(Environment(LogLevelVariable));
@@ -32,6 +39,12 @@ public sealed class CliHost : IDisposable
     public IClock Clock { get; }
 
     public IRedactor Redactor { get; }
+
+    /// <summary>
+    /// Device automation used by <c>mapcue explore</c> (options, input resolver); null = TapCue (<see cref="TapCueDeviceAutomation"/>).
+    /// Tests inject a fake device here.
+    /// </summary>
+    public Func<TapCueAdapterOptions, Func<string, string?>, IDeviceAutomation>? DeviceFactory { get; }
 
     public ILogger CreateLogger(string category) => _loggerFactory.CreateLogger(category);
 

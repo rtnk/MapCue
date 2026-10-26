@@ -11,10 +11,10 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 | 00 | Discovery & architecture | P0 | — | zmergowany (PR #2) |
 | 01 | Solution foundation | P0 | 00 | zmergowany (PR #3) |
 | 02 | TapCue adapter | P0 | 01 | zmergowany (PR #4) |
-| 02B | Demo/fixture app (MAUI) | P0 | 01 (równolegle z 03/04 po 02) | PR #7 otwarty (czeka na review i merge) |
+| 02B | Demo/fixture app (MAUI) | P0 | 01 (równolegle z 03/04 po 02) | zmergowany (PR #7) |
 | 03 | Graph & persistence | P0 | 01 | zmergowany (PR #5) |
 | 04 | Agent interpretation | P0 | 01, 03 | zmergowany (PR #6) |
-| 05 | Vertical slice crawler | P0 (MVP) | 02, 02B, 03, 04 | nie rozpoczęty |
+| 05 | Vertical slice crawler | P0 (MVP) | 02, 02B, 03, 04 | PR #8 otwarty (czeka na review i merge) |
 | 06 | Frontier scheduler | P0 (MVP) | 05 | nie rozpoczęty |
 | 07 | Profiles & variants | P0 (MVP) | 06 | nie rozpoczęty |
 | 08 | Screen Contract & accessibility | kontrakt P0, a11y P1 | 07 | nie rozpoczęty |
@@ -150,8 +150,8 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 |---|---|---|---|---|
 | R-01 | iOS przez TapCue nieprzetestowany dla flow (CI TapCue czyta tylko hierarchię) | wysokie / wysoki | smoke iOS w STEP-02 na `macos-26`. **Kryterium odblokowania:** dostępny runner macOS arm64 z Xcode (GitHub Actions albo host Roberta) + archiwum TapCue 0.1.0; PASS dla `inspect_screen` i jednej akcji na `com.apple.Preferences`. | 02 |
 | R-02 | brak timeoutu i anulowania w MCP (G-01) | pewne / średni | timeout + kill + `OutcomeUnknown` | 02, 06 |
-| R-03 | kolizja sesji MCP i CLI `hierarchy` na jednym urządzeniu | **zmierzone w 02:** `hierarchy` bez kolizji, `test` zrywa driver MCP / średni | adapter zamyka sesję MCP przed `test`, `DriverLost` restartuje sesję; tryb `exclusive` dostępny | 02, 08 |
-| R-04 | niestabilny fingerprint (MAUI, dane dynamiczne, brak `resourceId`) | średnie / wysoki | property tests (STEP-03: generowane ekrany i nagrania Androida), `fingerprintVersion` (= 1, przypięte hashe nagrań), metryka słabych kluczy (`WeakKeyCount`); `screenHints` i kalibracja progów na danych 02B w STEP-05 | 03, 05 |
+| R-03 | kolizja sesji MCP i CLI `hierarchy` na jednym urządzeniu | **zmierzone w 02:** `hierarchy` bez kolizji, `test` zrywa driver MCP / średni | adapter zamyka sesję MCP przed `test`, `DriverLost` restartuje sesję; tryb `exclusive` dostępny. **STEP-05 (emulator, run 40363853291):** eksploracja z resetem przez `setupFlow` (`tapcue test`) i MCP: 5 resetów, 6 sesji MCP (każdy `test` zamyka sesję, kolejne wywołanie otwiera nową, ok. 30–40 s na reset z akcjami), 0 błędów `DriverLost`, 0 `OutcomeUnknown` w 40 operacjach urządzenia (26 prób, 9 kroków nawigacji, 5 resetów) | 02, 05, 08 |
+| R-04 | niestabilny fingerprint (MAUI, dane dynamiczne, brak `resourceId`) | średnie / wysoki | property tests (STEP-03: generowane ekrany i nagrania Androida), `fingerprintVersion` (= 1, przypięte hashe nagrań), metryka słabych kluczy (`WeakKeyCount`); **STEP-05:** `fingerprintVersion` = 2 (kontenery frameworka MAUI/Android nie są kotwicami: Accounts miał z Home Jaccard 0,69, teraz 0,43), `identity.screenHints` (znacznik `screen.*` = ekran logiczny), Home `investor` jako wariant Home `basic` (0,857 ≥ 0,85; mały margines, do sprawdzenia w STEP-07); na emulatorze 7 stanów = 7 ekranów `expected-graph.md` bez fałszywych scaleń i duplikatów, 0 słabych kluczy interaktywnych na nagraniach Home | 03, 05 |
 | R-05 | jakość i koszt LLM | średnie / średni | RuleBased baseline, budżety, analiza raz na stan. **STEP-04:** `RuleBasedReasoner` (offline), budżety `maxCalls/maxTokens/maxCostUsd` sprawdzane przed każdym wywołaniem (brak raportu tokenów = estymata), jedna naprawa formatu; smoke `claude -p` lokalnie: 1 wywołanie, ~6,8 tys. tokenów, ~0,04 USD na ekran | 04 |
 | R-06 | błędna klasyfikacja akcji niszczącej | niskie / krytyczny | deny-by-default, `max(agent, reguły)`, tylko profile testowe, zgody per kategoria. **STEP-04:** słowa kluczowe EN/PL/DE/FR/ES/IT/PT (+ słowa z `resource-id`), reguły operatora tylko podnoszą ryzyko, `stateChanging`/`unknown` tylko przy `disposable`, klasy wysokiego ryzyka wymagają zgody kategorii i `disposable`, typ akcji spoza allowlisty zawsze `Rejected`; zgody operatora (`resume --approve`) w STEP-09 | 04, 07 |
 | R-07 | brak automatyzacji czytników ekranu (G-05) | pewne / średni | `unsupported` + protokół manualny | 08 |
@@ -166,7 +166,7 @@ Wymagania TOOL-009 nie zostały usunięte. CAP-0116 (analiza kodu) jest poza roa
 
 | Platforma | Snapshot | Akcja | Replay/eksport | A11y | Stan |
 |---|---|---|---|---|---|
-| Android emulator (Linux host) | PASS (MCP i CLI) | PASS (`launchApp`, `back`; STEP-02B: `tapOn` po `id`, `back`, `assert*` na demo app) | PASS (`test --test-output-dir`, bez eksportu; STEP-02B: 5 flow demo app) | NOT RUN | STEP-02: API 34 w GitHub Actions z KVM (`tapcue-compatibility.md` §9). STEP-02B: APK demo app (MAUI, Release) zbudowany na ubuntu, flow setupu obu profili i trasy `expected-graph.md` PASS (run 40335436029) |
+| Android emulator (Linux host) | PASS (MCP i CLI) | PASS (`launchApp`, `back`; STEP-02B: `tapOn` po `id`, `back`, `assert*` na demo app; STEP-05: `tapOn` po `id` i tekście/`content-desc` z generatora MapCue) | PASS (`test --test-output-dir`, bez eksportu; STEP-02B: 5 flow demo app; STEP-05: `setup-basic.yaml` jako reset) | NOT RUN | STEP-02: API 34 w GitHub Actions z KVM (`tapcue-compatibility.md` §9). STEP-02B: APK demo app (MAUI, Release) zbudowany na ubuntu, flow setupu obu profili i trasy `expected-graph.md` PASS (run 40335436029). STEP-05: `mapcue explore` (RuleBased) na demo app PASS: 7 stanów, 26 krawędzi, 25/25 przejść `expected-graph.md` (profil `basic`), 0 akcji ryzykownych, 268 s (run 40363853291, `tapcue-compatibility.md` §11) |
 | Android emulator (macOS host) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | — |
 | iOS Simulator (macOS arm64) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | R-01: job `ios` gotowy (`workflow_dispatch`), nie uruchomiony. STEP-02B: build demo app `net10.0-ios` (job `ios-build` w `demo-app.yml`, `workflow_dispatch`) **FAIL** (2026-10-26, runy 40354238048, 40354509027, 40354956988): `macos-26` ma tylko Xcode 26.6, a pakiety .NET for iOS wymagają dokładnie Xcode 27.1 (27.1.10018) albo 26.0 (26.0.11017); R-10 |
 | Android fizyczne | NOT RUN | NOT RUN | NOT RUN | NOT RUN | nieprzetestowane w TapCue |

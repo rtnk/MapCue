@@ -2,7 +2,7 @@
 
 MapCue (nazwa robocza, TOOL-009 „MobileGraph Explorer”) to planowane narzędzie CLI w .NET 10. Ma deterministycznie eksplorować aplikacje mobilne (Android/iOS) przez [TapCue](https://github.com/rtnk/TapCue). Buduje trwały graf ekranów, stanów i wariantów profili, kontrakty ekranów z macierzą dostępności, a zweryfikowane ścieżki eksportuje jako flow YAML TapCue.
 
-**Stan:** STEP-04 (interpretacja przez agenta). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0, działające `mapcue doctor`, a od STEP-03 model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Pozostałe komendy to zaślepki. Eksploracja jeszcze nie działa (od STEP-05). Od STEP-02B jest aplikacja kontrolna MAUI `samples/MapCue.DemoApp` (cel eksploracji, poza `MapCue.sln`).
+**Stan:** STEP-05 (vertical slice crawler). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0 i `mapcue doctor`. Od STEP-03 jest model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Od STEP-05 działa eksploracja: `mapcue explore` (preflight → pętla `AnalyzeState`/`ExploreAction` → zakończenie, prosty frontier w SQLite, artefakty prób) i `mapcue status`. Pozostałe komendy (`blocked`, `resume`, `report`, `export`, `diff`) to zaślepki. Od STEP-02B jest aplikacja kontrolna MAUI `samples/MapCue.DemoApp` (cel eksploracji, poza `MapCue.sln`).
 
 ## Szybki start (bez urządzenia, TapCue i LLM)
 
@@ -13,10 +13,10 @@ dotnet build MapCue.sln
 dotnet test MapCue.sln
 dotnet format MapCue.sln --verify-no-changes
 dotnet run --project src/MapCue.Cli -- --help
-dotnet run --project src/MapCue.Cli -- explore --config docs/examples/mapcue.example.yaml   # waliduje konfigurację, potem „not implemented”
+dotnet run --project src/MapCue.Cli -- status --workspace /tmp/mapcue-empty                  # „no runs”, niczego nie tworzy
 ```
 
-Kody wyjścia `mapcue`: `0` sukces, `1` błędna linia poleceń, `2` błędna konfiguracja, `3` komenda jeszcze niezaimplementowana, `4` `doctor` znalazł niespełniony warunek, `5` błędny plik wejściowy (np. plan `graph import`), `6` workspace zajęty przez inny proces MapCue albo schemat bazy nowszy lub zmieniony. Przykład konfiguracji: [`docs/examples/mapcue.example.yaml`](docs/examples/mapcue.example.yaml). Logi to JSON lines na stderr, zawsze po redakcji; poziom ustawia `MAPCUE_LOG_LEVEL` (domyślnie `Warning`).
+Kody wyjścia `mapcue`: `0` sukces, `1` błędna linia poleceń, `2` błędna konfiguracja, `3` komenda jeszcze niezaimplementowana, `4` `doctor` znalazł niespełniony warunek, `5` błędny plik wejściowy (np. plan `graph import`, nieznany `--run`), `6` workspace zajęty przez inny proces MapCue albo schemat bazy nowszy lub zmieniony, `7` preflight `explore` nieudany (urządzenie, setup flow, aplikacja na pierwszym planie, sekret), `8` run `explore` zakończony błędem albo przerwany. Przykład konfiguracji: [`docs/examples/mapcue.example.yaml`](docs/examples/mapcue.example.yaml). Logi to JSON lines na stderr, zawsze po redakcji; poziom ustawia `MAPCUE_LOG_LEVEL` (domyślnie `Warning`).
 
 ## Graf bez urządzenia: `mapcue graph import`
 
@@ -38,6 +38,22 @@ Smoke z prawdziwym CLI (pomijany bez zmiennej):
 MAPCUE_AGENT_SMOKE=local dotnet test tests/MapCue.Adapters.Reasoning.Tests --filter CliAgentSmokeTests
 MAPCUE_AGENT_SMOKE=container MAPCUE_AGENT_IMAGE=<obraz z claude> ANTHROPIC_API_KEY=… dotnet test tests/MapCue.Adapters.Reasoning.Tests --filter CliAgentSmokeTests
 ```
+
+## Eksploracja (STEP-05): `mapcue explore` i `mapcue status`
+
+```bash
+PATH=<katalog bin TapCue>:$PATH dotnet run --project src/MapCue.Cli -- explore --config mapcue.yaml [--profile basic] [--device emulator-5554] [--seed demo] [--app-build 1.2.3]
+dotnet run --project src/MapCue.Cli -- status --config mapcue.yaml      # albo --workspace <dir> [--run <runId>]
+```
+
+- **Preflight:** miejsce na dysku, urządzenie (połączone, z allowlisty, platforma profilu albo `--device`), plik `profiles[].setupFlow`, start aplikacji (`setupFlow` przez `tapcue test`, inaczej `launchApp`) i aplikacja na pierwszym planie.
+- **Pętla:** `AnalyzeState` (reasoner na zapisanym snapshocie, bez urządzenia; domyślnie `agent.reasoner: rule-based`) planuje zaakceptowane akcje jako zadania `ExploreAction`. Zadanie: dojście do stanu źródłowego (znane krawędzie, inaczej reset), świeży pre-snapshot i `PreExecutionGuard`, jedna akcja, stabilizacja UI (2× ten sam odcisk bez `loading` albo `uiSettleTimeout`), commit próby w jednej transakcji.
+- **Zakończenie:** `Exhausted`, `BudgetExhausted`, `AllRemainingBlocked`, `PreflightFailed`, `Failed`, `StoppedByOperator`.
+- **Workspace:** `mapcue.db`, `blobs/`, `runs/<runId>/run.json`, `runs/<runId>/tasks/<taskId>/attempts/<n>/attempt.json`.
+- `back` na ekranie głównym wychodzi z aplikacji: krawędź `executed` bez stanu docelowego, ekran launchera jako dowód próby, reset.
+- `--seed` ustala identyfikatory runu i zdarzeń: dwa runy z tym samym ziarnem na tej samej aplikacji dają ten sam graf.
+
+Demo na emulatorze: [`samples/MapCue.DemoApp/mapcue.demo.yaml`](samples/MapCue.DemoApp/mapcue.demo.yaml), `run-explore.sh` i porównanie z wyrocznią `compare-expected.py` (job `android-explore` w `.github/workflows/demo-app.yml`).
 
 ## TapCue i `mapcue doctor`
 

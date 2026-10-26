@@ -1,0 +1,41 @@
+# MapCue exploration of the demo app (STEP-05 vertical slice): profile `basic`, rule-based reasoner (no LLM), Android emulator.
+# Used by .github/workflows/demo-app.yml (job android-explore) through run-explore.sh; expected map: expected-graph.md.
+schemaVersion: mapcue.config/1
+workspace: .mapcue-demo
+
+allowlist:
+  appIds: [com.mapcue.demoapp]
+  environments: [test]
+  deviceIds: ["emulator-*"]
+
+budgets:
+  maxDepth: 8
+  maxActions: 150
+  maxDuration: 30m
+  uiSettleTimeout: 5s
+  actionTimeout: 30s
+  observeTimeout: 20s
+
+agent:
+  reasoner: rule-based
+
+# Choosing the other test profile inside the `basic` context would mix profiles (STEP-07 explores profiles separately).
+policy:
+  riskRules:
+    - name: other-profile
+      riskClass: accountChange
+      resourceId: com.mapcue.demoapp:id/profile.investor
+
+# MAUI pages carry their AutomationId on the title label (screen.*): one marker per logical screen (expected-graph.md).
+identity:
+  screenHints:
+    - ':id/screen\.[A-Za-z0-9_.-]+$'
+
+profiles:
+  - profileId: basic
+    platform: android
+    appId: com.mapcue.demoapp
+    environment: test
+    dataIsolation: shared-readonly
+    setupFlow: .tapcue/setup-basic.yaml
+    capabilities: []

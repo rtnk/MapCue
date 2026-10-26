@@ -16,6 +16,18 @@ public sealed record MapCueSettings(
 
     /// <summary>Operator policy rules (STEP-04). Defaults to no extra rules.</summary>
     public PolicySettings Policy { get; init; } = PolicySettings.Default;
+
+    /// <summary>Screen identity settings (STEP-05). Defaults to no screen hints.</summary>
+    public IdentitySettings Identity { get; init; } = IdentitySettings.Default;
+}
+
+/// <summary>
+/// Screen identity settings (architecture §7.3 step 3): <see cref="ScreenHints"/> are patterns for the resource id of an element
+/// that names the screen (e.g. the MAUI <c>AutomationId</c> of a page title). Compiled with a match timeout.
+/// </summary>
+public sealed record IdentitySettings(IReadOnlyList<System.Text.RegularExpressions.Regex> ScreenHints)
+{
+    public static IdentitySettings Default { get; } = new([]);
 }
 
 /// <summary>
@@ -57,6 +69,15 @@ public sealed record Budgets(
         UiSettleTimeout: TimeSpan.FromSeconds(5),
         ActionTimeout: TimeSpan.FromSeconds(30),
         ObserveTimeout: TimeSpan.FromSeconds(20));
+}
+
+/// <summary>Which reasoner interprets states (ADR-0004). <see cref="RuleBased"/> needs no language model and is the default.</summary>
+public enum ReasonerKind
+{
+    RuleBased,
+
+    /// <summary><c>CliAgentReasoner</c> (agent CLI, container by default).</summary>
+    Cli,
 }
 
 public enum AgentRuntime
@@ -110,6 +131,9 @@ public sealed record AgentSettings(
 
     /// <summary>Optional API key reference (<c>secret://env/NAME</c>), passed to the agent by name only, never on the command line.</summary>
     public MapCue.Domain.Secrets.SecretRef? ApiKey { get; init; }
+
+    /// <summary>Reasoner used by <c>mapcue explore</c> (STEP-05); <c>rule-based</c> by default (offline, no cost).</summary>
+    public ReasonerKind Reasoner { get; init; } = ReasonerKind.RuleBased;
 }
 
 /// <summary>An input value of a profile: either a secret reference or a deterministic generator.</summary>
@@ -122,7 +146,14 @@ public sealed record ProfileSettings(
     string Environment,
     DataIsolation DataIsolation,
     IReadOnlyList<ProfileInput> Inputs,
-    IReadOnlyList<string> Capabilities);
+    IReadOnlyList<string> Capabilities)
+{
+    /// <summary>
+    /// Operator TapCue flow that brings the app from a clean start to the profile's start state (architecture §6), relative to the
+    /// configuration file. Null: the engine starts the app with a plain <c>launchApp</c>.
+    /// </summary>
+    public string? SetupFlow { get; init; }
+}
 
 /// <summary>How a full-fidelity observation (CLI <c>hierarchy</c>) coexists with the MCP session (ADR-0002, R-03).</summary>
 public enum FullObservationMode

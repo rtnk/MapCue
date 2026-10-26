@@ -38,10 +38,11 @@ public static partial class MapCueConfigValidator
         var profiles = ValidateProfiles(document.Profiles, allowlist, errors);
         var tapCue = ValidateTapCue(document.Tapcue, errors);
         var policy = ValidatePolicy(document.Policy, errors);
+        var identity = ValidateIdentity(document.Identity, errors);
 
         return errors.Count > 0
             ? new(null, errors)
-            : new(new MapCueSettings(workspace, allowlist, budgets, agent, profiles, tapCue) { Policy = policy }, errors);
+            : new(new MapCueSettings(workspace, allowlist, budgets, agent, profiles, tapCue) { Policy = policy, Identity = identity }, errors);
     }
 
     private static AllowlistSettings ValidateAllowlist(AllowlistDocument? doc, List<ConfigError> errors)
@@ -186,6 +187,19 @@ public static partial class MapCueConfigValidator
             errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.model", "Must be a model identifier."));
         }
 
+        var reasoner = ReasonerKind.RuleBased;
+        switch (doc.Reasoner)
+        {
+            case null or "rule-based":
+                break;
+            case "cli":
+                reasoner = ReasonerKind.Cli;
+                break;
+            default:
+                errors.Add(new(ConfigErrorCodes.InvalidAgentSetting, "agent.reasoner", "Must be 'rule-based' (default) or 'cli'."));
+                break;
+        }
+
         SecretRef? apiKey = null;
         if (doc.ApiKey is not null && !SecretRef.TryParse(doc.ApiKey, out apiKey))
         {
@@ -209,7 +223,37 @@ public static partial class MapCueConfigValidator
             Model = doc.Model,
             Timeout = Duration(doc.Timeout, d.Timeout, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(30), "agent.timeout", errors),
             ApiKey = apiKey,
+            Reasoner = reasoner,
         };
+    }
+
+    private static IdentitySettings ValidateIdentity(IdentityDocument? doc, List<ConfigError> errors)
+    {
+        if (doc?.ScreenHints is null)
+        {
+            return IdentitySettings.Default;
+        }
+
+        var hints = new List<Regex>();
+        for (var i = 0; i < doc.ScreenHints.Count; i++)
+        {
+            var pattern = doc.ScreenHints[i];
+            try
+            {
+                if (string.IsNullOrEmpty(pattern) || pattern.Length > 512)
+                {
+                    throw new ArgumentException("empty or too long");
+                }
+
+                hints.Add(new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)));
+            }
+            catch (ArgumentException)
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidScreenHint, $"identity.screenHints[{i}]", "Must be a valid regular expression (1-512 characters) matched against element resource ids."));
+            }
+        }
+
+        return new IdentitySettings(hints);
     }
 
     private static bool ExecutableName(string value) =>
@@ -429,9 +473,16 @@ public static partial class MapCueConfigValidator
                 }
             }
 
+            var setupFlow = doc.SetupFlow?.Trim();
+            if (setupFlow is not null && (setupFlow.Length is 0 or > 1024 || setupFlow.Any(char.IsControl)
+                || !(setupFlow.EndsWith(".yaml", StringComparison.Ordinal) || setupFlow.EndsWith(".yml", StringComparison.Ordinal))))
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidProfile, $"{path}.setupFlow", "Must be the path of a TapCue flow file (.yaml or .yml), relative to the configuration file."));
+            }
+
             if (errors.Count == before)
             {
-                result.Add(new ProfileSettings(profileId!, platform!.Value, appId!, environment!, isolation!.Value, inputs, capabilities));
+                result.Add(new ProfileSettings(profileId!, platform!.Value, appId!, environment!, isolation!.Value, inputs, capabilities) { SetupFlow = setupFlow });
             }
         }
 
