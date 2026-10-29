@@ -111,6 +111,15 @@ public interface IFrontierRepository
     /// <summary>Updates status, priority, lease and blocked reason of an existing task.</summary>
     Task UpdateTaskAsync(FrontierTask task, CancellationToken ct);
 
+    /// <summary>
+    /// Claims a pending task (architecture §5.3, <c>Pending → Leased</c>): sets the lease only if the task is still
+    /// <see cref="FrontierTaskStatus.Pending"/>. Returns false when another owner was first or the task is no longer pending.
+    /// </summary>
+    Task<bool> TryLeaseTaskAsync(string taskId, string owner, DateTimeOffset expiresAt, DateTimeOffset now, CancellationToken ct);
+
+    /// <summary>Extends the lease of a task held by <paramref name="owner"/>. Returns false when the task is not leased by it.</summary>
+    Task<bool> RenewTaskLeaseAsync(string taskId, string owner, DateTimeOffset expiresAt, CancellationToken ct);
+
     /// <summary>Tasks in scheduling order: priority (desc), depth, creation sequence.</summary>
     Task<IReadOnlyList<FrontierTask>> ListTasksAsync(FrontierTaskStatus? status, CancellationToken ct);
 
@@ -129,6 +138,9 @@ public interface IFrontierRepository
     Task<bool> InsertTaskActionIfAbsentAsync(TaskAction action, CancellationToken ct);
 
     Task<TaskAction?> GetTaskActionAsync(string taskId, CancellationToken ct);
+
+    /// <summary>All stored task actions, by task id (navigation over known edges reads them at once).</summary>
+    Task<IReadOnlyList<TaskAction>> ListTaskActionsAsync(CancellationToken ct);
 
     Task InsertCheckpointAsync(Checkpoint checkpoint, CancellationToken ct);
 
@@ -177,4 +189,18 @@ public interface IRunRepository
 
     /// <summary>The most recently started run (ties broken by id), or null.</summary>
     Task<ExplorationRun?> GetLatestAsync(CancellationToken ct);
+
+    /// <summary>Runs that did not reach <see cref="RunStatus.Finished"/>, in start order (a crashed process leaves them behind).</summary>
+    Task<IReadOnlyList<ExplorationRun>> ListUnfinishedAsync(CancellationToken ct);
+
+    Task<DeviceLease?> GetDeviceLeaseAsync(string deviceId, CancellationToken ct);
+
+    /// <summary>
+    /// Takes or renews the lease of <see cref="DeviceLease.DeviceId"/> for its owner. Succeeds when the device is free, already
+    /// leased by the same owner, or leased by another owner whose lease expired before <paramref name="now"/>.
+    /// </summary>
+    Task<bool> TryAcquireDeviceLeaseAsync(DeviceLease lease, DateTimeOffset now, CancellationToken ct);
+
+    /// <summary>Releases every device lease of the run. Returns the number of released leases.</summary>
+    Task<int> ReleaseDeviceLeasesAsync(string ownerRunId, CancellationToken ct);
 }

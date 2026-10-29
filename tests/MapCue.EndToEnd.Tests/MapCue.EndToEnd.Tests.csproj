@@ -7,5 +7,7 @@
     <ProjectReference Include="..\..\src\MapCue.Infrastructure.Sqlite\MapCue.Infrastructure.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
     <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
+    <!-- The child process of the kill tests; its build output is copied next to the tests. -->
+    <ProjectReference Include="..\MapCue.EndToEnd.CrashHost\MapCue.EndToEnd.CrashHost.csproj" />
   </ItemGroup>
 </Project>

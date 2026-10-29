@@ -41,7 +41,23 @@ public sealed record ExplorationOptions(ProfileSettings Profile, string RunsDire
 
     /// <summary>Progress lines for the console (already redacted).</summary>
     public Action<string>? Progress { get; init; }
+
+    /// <summary>How long a task or device lease lasts without renewal (renewed at every attempt phase and loop iteration).</summary>
+    public TimeSpan LeaseDuration { get; init; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// True when the caller holds the workspace lock (<c>.mapcue/lock</c>, the CLI does): no other process can be writing, so leases
+    /// of other runs and runs left unfinished belong to dead processes and are reconciled at once. Otherwise only expired task leases
+    /// are reclaimed and other runs are left alone.
+    /// </summary>
+    public bool WorkspaceLockHeld { get; init; }
+
+    /// <summary>Called after each attempt phase is journaled (committed to the store), before the next step runs.</summary>
+    public Action<AttemptPhaseEvent>? OnAttemptPhase { get; init; }
 }
+
+/// <summary>An attempt reached <see cref="Phase"/>; the phase is already durable.</summary>
+public sealed record AttemptPhaseEvent(string TaskId, string AttemptId, int N, AttemptPhase Phase);
 
 /// <summary>Result of a run.</summary>
 public sealed record ExplorationResult(string RunId, string? ContextId, RunFinishReason Reason, string? Detail, RunCounters Counters);

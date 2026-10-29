@@ -395,8 +395,8 @@ internal sealed class SqliteGraphRepository(SqliteConnection connection, SqliteT
 
 internal sealed class SqliteFrontierRepository(SqliteConnection connection, SqliteTransaction transaction) : SqliteRepository(connection, transaction), IFrontierRepository
 {
-    private const string TaskColumns = "task_id, task_key, type, status, priority, depth, context_id, from_state_id, action_key, recipe_id, lease_owner, lease_expires_at, blocked_code, blocked_details, blocked_evidence_json, blocked_resume_doc, created_seq, created_at, updated_at";
-    private const string AttemptColumns = "attempt_id, task_id, n, phase, outcome, error, artifacts_dir, started_at, ended_at";
+    private const string TaskColumns = "task_id, task_key, type, status, priority, depth, context_id, from_state_id, action_key, recipe_id, lease_owner, lease_expires_at, blocked_code, blocked_details, blocked_evidence_json, blocked_resume_doc, created_seq, created_at, updated_at, represented_by";
+    private const string AttemptColumns = "attempt_id, task_id, n, phase, outcome, error, artifacts_dir, started_at, ended_at, run_id";
 
     public async Task<bool> InsertTaskIfAbsentAsync(FrontierTask task, CancellationToken ct)
     {
@@ -404,8 +404,8 @@ internal sealed class SqliteFrontierRepository(SqliteConnection connection, Sqli
         return await ExecuteAsync(
             """
             INSERT INTO frontier_tasks (task_id, task_key, type, status, priority, depth, context_id, from_state_id, action_key, recipe_id, lease_owner, lease_expires_at,
-                blocked_code, blocked_details, blocked_evidence_json, blocked_resume_doc, created_at, updated_at)
-            VALUES ($id, $key, $type, $status, $priority, $depth, $ctx, $from, $action, $recipe, $owner, $expires, $bcode, $bdetails, $bevidence, $bresume, $created, $updated)
+                blocked_code, blocked_details, blocked_evidence_json, blocked_resume_doc, created_at, updated_at, represented_by)
+            VALUES ($id, $key, $type, $status, $priority, $depth, $ctx, $from, $action, $recipe, $owner, $expires, $bcode, $bdetails, $bevidence, $bresume, $created, $updated, $represented)
             ON CONFLICT(task_key) DO NOTHING
             """,
             ct,
@@ -424,13 +424,37 @@ internal sealed class SqliteFrontierRepository(SqliteConnection connection, Sqli
         var rows = await ExecuteAsync(
             """
             UPDATE frontier_tasks SET status = $status, priority = $priority, depth = $depth, recipe_id = $recipe, lease_owner = $owner, lease_expires_at = $expires,
-                blocked_code = $bcode, blocked_details = $bdetails, blocked_evidence_json = $bevidence, blocked_resume_doc = $bresume, updated_at = $updated
+                blocked_code = $bcode, blocked_details = $bdetails, blocked_evidence_json = $bevidence, blocked_resume_doc = $bresume, updated_at = $updated,
+                represented_by = $represented
             WHERE task_id = $id
             """,
             ct,
             TaskParameters(task));
         SqliteGraphRepository.EnsureOne(rows, "task", task.TaskId);
     }
+
+    public async Task<bool> TryLeaseTaskAsync(string taskId, string owner, DateTimeOffset expiresAt, DateTimeOffset now, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        return await ExecuteAsync(
+            "UPDATE frontier_tasks SET status = $leased, lease_owner = $owner, lease_expires_at = $expires, updated_at = $now WHERE task_id = $id AND status = $pending",
+            ct,
+            ("$leased", nameof(FrontierTaskStatus.Leased)),
+            ("$pending", nameof(FrontierTaskStatus.Pending)),
+            ("$owner", owner),
+            ("$expires", Db.Time(expiresAt)),
+            ("$now", Db.Time(now)),
+            ("$id", taskId)) == 1;
+    }
+
+    public async Task<bool> RenewTaskLeaseAsync(string taskId, string owner, DateTimeOffset expiresAt, CancellationToken ct) =>
+        await ExecuteAsync(
+            "UPDATE frontier_tasks SET lease_expires_at = $expires WHERE task_id = $id AND status = $leased AND lease_owner = $owner",
+            ct,
+            ("$leased", nameof(FrontierTaskStatus.Leased)),
+            ("$owner", owner),
+            ("$expires", Db.Time(expiresAt)),
+            ("$id", taskId)) == 1;
 
     public async Task<IReadOnlyList<FrontierTask>> ListTasksAsync(FrontierTaskStatus? status, CancellationToken ct) =>
         status is null
@@ -457,7 +481,7 @@ internal sealed class SqliteFrontierRepository(SqliteConnection connection, Sqli
     {
         ArgumentNullException.ThrowIfNull(attempt);
         return await ExecuteAsync(
-            $"INSERT INTO task_attempts ({AttemptColumns}) VALUES ($id, $task, $n, $phase, $outcome, $error, $dir, $started, $ended) ON CONFLICT(attempt_id) DO NOTHING",
+            $"INSERT INTO task_attempts ({AttemptColumns}) VALUES ($id, $task, $n, $phase, $outcome, $error, $dir, $started, $ended, $run) ON CONFLICT(attempt_id) DO NOTHING",
             ct,
             AttemptParameters(attempt)) == 1;
     }
@@ -496,9 +520,15 @@ internal sealed class SqliteFrontierRepository(SqliteConnection connection, Sqli
     public Task<TaskAction?> GetTaskActionAsync(string taskId, CancellationToken ct) =>
         SingleOrDefaultAsync(
             "SELECT task_id, action_json, element_key, expected_identity_hash, created_at FROM task_actions WHERE task_id = $task",
-            r => new TaskAction(r.GetString(0), Db.ReadJson<ValidatedDeviceAction>(r, 1), Db.ReadStringOrNull(r, 2), r.GetString(3), Db.ReadTime(r, 4)),
+            MapTaskAction,
             ct,
             ("$task", taskId));
+
+    public async Task<IReadOnlyList<TaskAction>> ListTaskActionsAsync(CancellationToken ct) =>
+        await QueryAsync("SELECT task_id, action_json, element_key, expected_identity_hash, created_at FROM task_actions ORDER BY task_id", MapTaskAction, ct);
+
+    private static TaskAction MapTaskAction(SqliteDataReader r) =>
+        new(r.GetString(0), Db.ReadJson<ValidatedDeviceAction>(r, 1), Db.ReadStringOrNull(r, 2), r.GetString(3), Db.ReadTime(r, 4));
 
     public Task InsertCheckpointAsync(Checkpoint checkpoint, CancellationToken ct)
     {
@@ -541,6 +571,7 @@ internal sealed class SqliteFrontierRepository(SqliteConnection connection, Sqli
         ("$bresume", task.BlockedReason?.ResumeDoc),
         ("$created", Db.Time(task.CreatedAt)),
         ("$updated", Db.Time(task.UpdatedAt)),
+        ("$represented", task.RepresentedBy),
     ];
 
     private static (string, object?)[] AttemptParameters(TaskAttempt attempt) =>
@@ -554,6 +585,7 @@ internal sealed class SqliteFrontierRepository(SqliteConnection connection, Sqli
         ("$dir", attempt.ArtifactsDir),
         ("$started", Db.Time(attempt.StartedAt)),
         ("$ended", Db.Time(attempt.EndedAt)),
+        ("$run", attempt.RunId),
     ];
 
     private static FrontierTask MapTask(SqliteDataReader r)
@@ -576,11 +608,17 @@ internal sealed class SqliteFrontierRepository(SqliteConnection connection, Sqli
             blocked,
             r.GetInt64(16),
             Db.ReadTime(r, 17),
-            Db.ReadTime(r, 18));
+            Db.ReadTime(r, 18))
+        {
+            RepresentedBy = Db.ReadStringOrNull(r, 19),
+        };
     }
 
     private static TaskAttempt MapAttempt(SqliteDataReader r) =>
-        new(r.GetString(0), r.GetString(1), r.GetInt32(2), Db.ReadEnum<AttemptPhase>(r, 3), Db.ReadEnumOrNull<ActionOutcome>(r, 4), Db.ReadStringOrNull(r, 5), Db.ReadStringOrNull(r, 6), Db.ReadTime(r, 7), Db.ReadTimeOrNull(r, 8));
+        new(r.GetString(0), r.GetString(1), r.GetInt32(2), Db.ReadEnum<AttemptPhase>(r, 3), Db.ReadEnumOrNull<ActionOutcome>(r, 4), Db.ReadStringOrNull(r, 5), Db.ReadStringOrNull(r, 6), Db.ReadTime(r, 7), Db.ReadTimeOrNull(r, 8))
+        {
+            RunId = Db.ReadStringOrNull(r, 9),
+        };
 }
 
 internal sealed class SqliteEventOutbox(SqliteConnection connection, SqliteTransaction transaction) : SqliteRepository(connection, transaction), IEventOutbox
@@ -719,6 +757,52 @@ internal sealed class SqliteRunRepository(SqliteConnection connection, SqliteTra
 
     public Task<ExplorationRun?> GetLatestAsync(CancellationToken ct) =>
         SingleOrDefaultAsync($"SELECT {Columns} FROM runs ORDER BY started_at DESC, run_id DESC LIMIT 1", Map, ct);
+
+    public async Task<IReadOnlyList<ExplorationRun>> ListUnfinishedAsync(CancellationToken ct) =>
+        await QueryAsync($"SELECT {Columns} FROM runs WHERE status <> $finished ORDER BY started_at, run_id", Map, ct, ("$finished", nameof(RunStatus.Finished)));
+
+    public Task<DeviceLease?> GetDeviceLeaseAsync(string deviceId, CancellationToken ct) =>
+        SingleOrDefaultAsync(
+            "SELECT device_id, owner_run_id, acquired_at, expires_at FROM device_leases WHERE device_id = $device",
+            r => new DeviceLease(r.GetString(0), r.GetString(1), Db.ReadTime(r, 2), Db.ReadTime(r, 3)),
+            ct,
+            ("$device", deviceId));
+
+    public async Task<bool> TryAcquireDeviceLeaseAsync(DeviceLease lease, DateTimeOffset now, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        var current = await GetDeviceLeaseAsync(lease.DeviceId, ct);
+        if (current is null)
+        {
+            await ExecuteAsync(
+                "INSERT INTO device_leases (device_id, owner_run_id, acquired_at, expires_at) VALUES ($device, $owner, $acquired, $expires)",
+                ct,
+                ("$device", lease.DeviceId),
+                ("$owner", lease.OwnerRunId),
+                ("$acquired", Db.Time(lease.AcquiredAt)),
+                ("$expires", Db.Time(lease.ExpiresAt)));
+            return true;
+        }
+
+        if (current.OwnerRunId != lease.OwnerRunId && current.ExpiresAt > now)
+        {
+            return false;
+        }
+
+        // Renewal keeps the original acquisition time; taking over an expired lease starts a new one.
+        var acquired = current.OwnerRunId == lease.OwnerRunId ? current.AcquiredAt : lease.AcquiredAt;
+        await ExecuteAsync(
+            "UPDATE device_leases SET owner_run_id = $owner, acquired_at = $acquired, expires_at = $expires WHERE device_id = $device",
+            ct,
+            ("$device", lease.DeviceId),
+            ("$owner", lease.OwnerRunId),
+            ("$acquired", Db.Time(acquired)),
+            ("$expires", Db.Time(lease.ExpiresAt)));
+        return true;
+    }
+
+    public Task<int> ReleaseDeviceLeasesAsync(string ownerRunId, CancellationToken ct) =>
+        ExecuteAsync("DELETE FROM device_leases WHERE owner_run_id = $owner", ct, ("$owner", ownerRunId));
 
     private static (string, object?)[] Parameters(ExplorationRun run) =>
     [

@@ -40,7 +40,8 @@ public sealed record FakeScreen(string Id, IReadOnlyList<FakeElement> Elements)
 /// <summary>
 /// An element. Tapping navigates to <see cref="TargetScreenId"/> when set (how: <see cref="Navigation"/>); <see cref="Navigation"/>
 /// <see cref="FakeNavigation.Pop"/> closes the screen. Resource ids are reported as written (an empty one as none, like a MAUI list row
-/// without <c>AutomationId</c>).
+/// without <c>AutomationId</c>). <see cref="Depth"/> nests elements (pre-order, like TapCue reports them): rows at depth 1 after a
+/// <see cref="Scrollable"/> container at depth 0 form a list.
 /// </summary>
 public sealed record FakeElement(string ResourceId, string Text, string? TargetScreenId = null)
 {
@@ -51,6 +52,10 @@ public sealed record FakeElement(string ResourceId, string Text, string? TargetS
     public bool Clickable { get; init; } = true;
 
     public string? AccessibilityText { get; init; }
+
+    public int Depth { get; init; }
+
+    public bool Scrollable { get; init; }
 }
 
 /// <summary>
@@ -148,7 +153,7 @@ public sealed class FakeDevice : IDeviceAutomation
 
         var elements = screen.Elements
             .Where(e => !HiddenElements.Contains(e.ResourceId))
-            .Select(e => new RawElement(string.IsNullOrEmpty(e.ResourceId) ? null : e.ResourceId, e.Text, e.AccessibilityText, e.ClassName, Clickable: e.Clickable, Enabled: true))
+            .Select(e => new RawElement(string.IsNullOrEmpty(e.ResourceId) ? null : e.ResourceId, e.Text, e.AccessibilityText, e.ClassName, Clickable: e.Clickable, Enabled: true, Scrollable: e.Scrollable, Depth: e.Depth))
             .ToList();
         return Task.FromResult(new RawObservation(device, screen.Package ?? _app.AppId, elements, HashOf(screen), _clock.UtcNow));
     }
