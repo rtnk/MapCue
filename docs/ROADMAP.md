@@ -15,7 +15,7 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 | 03 | Graph & persistence | P0 | 01 | zmergowany (PR #5) |
 | 04 | Agent interpretation | P0 | 01, 03 | zmergowany (PR #6) |
 | 05 | Vertical slice crawler | P0 (MVP) | 02, 02B, 03, 04 | zmergowany (PR #8) |
-| 06 | Frontier scheduler | P0 (MVP) | 05 | PR otwarty (czeka na review i merge) |
+| 06 | Frontier scheduler | P0 (MVP) | 05 | PR #9 otwarty (czeka na review i merge) |
 | 07 | Profiles & variants | P0 (MVP) | 06 | nie rozpoczęty |
 | 08 | Screen Contract & accessibility | kontrakt P0, a11y P1 | 07 | nie rozpoczęty |
 | 09 | Recovery & operator handoff | P0 (MVP) | 06 (07 dla wariantów) | nie rozpoczęty |
