@@ -15,12 +15,12 @@ allowlist:
 
 budgets:
   maxDepth: 8
-  maxScreens: 40
-  maxStates: 120
-  maxActions: 300
+  maxScreens: 40         # per run: new screens of this run
+  maxStates: 120         # per run: new states of this run
+  maxActions: 300        # per run; a task is not started when its estimated actions do not fit
   maxDuration: 60m
-  maxRetries: 2          # infrastructure retries only
-  maxListRowsPerTemplate: 2
+  maxRetries: 2          # infrastructure only: interruptions before ActionDispatched, then the task fails
+  maxListRowsPerTemplate: 2  # further rows of a list template are representedBy the first one
   uiSettleTimeout: 5s
   actionTimeout: 30s
   observeTimeout: 20s
