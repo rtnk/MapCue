@@ -190,7 +190,12 @@ public sealed record Evidence(
 /// <summary>Why a task is blocked, with what the operator needs to resume it (architecture §6, §13).</summary>
 public sealed record BlockedReason(BlockedReasonCode Code, string Details, IReadOnlyList<string> EvidenceIds, string? ResumeDoc);
 
-/// <summary>A frontier task (architecture §6, §5.3). <see cref="TaskKey"/> is unique; <see cref="CreatedSeq"/> is assigned by the store.</summary>
+/// <summary>
+/// A frontier task (architecture §6, §5.3). <see cref="TaskKey"/> is unique; <see cref="CreatedSeq"/> is assigned by the store.
+/// <see cref="LeaseOwner"/> is the run that claimed the task (status <see cref="FrontierTaskStatus.Leased"/>) until
+/// <see cref="LeaseExpiresAt"/>. <see cref="RepresentedBy"/> is the task of another row of the same list template that stands for
+/// this one (budgets.maxListRowsPerTemplate); such a task is <see cref="FrontierTaskStatus.Cancelled"/> and never executed.
+/// </summary>
 public sealed record FrontierTask(
     string TaskId,
     string TaskKey,
@@ -207,9 +212,15 @@ public sealed record FrontierTask(
     BlockedReason? BlockedReason,
     long CreatedSeq,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    public string? RepresentedBy { get; init; }
+}
 
-/// <summary>An attempt of a task (architecture §6).</summary>
+/// <summary>
+/// An attempt of a task (architecture §6). <see cref="Phase"/> is journaled before its effect (§5.3), so after a crash the last
+/// phase decides the recovery. <see cref="RunId"/> is the run that made the attempt (null for imported attempts).
+/// </summary>
 public sealed record TaskAttempt(
     string AttemptId,
     string TaskId,
@@ -219,7 +230,10 @@ public sealed record TaskAttempt(
     string? Error,
     string? ArtifactsDir,
     DateTimeOffset StartedAt,
-    DateTimeOffset? EndedAt);
+    DateTimeOffset? EndedAt)
+{
+    public string? RunId { get; init; }
+}
 
 /// <summary>Frontier statistics captured in a checkpoint.</summary>
 public sealed record FrontierStats(int Pending, int Leased, int Completed, int Blocked, int Failed, int OutcomeUnknown, int ReadyToResume, int Cancelled)

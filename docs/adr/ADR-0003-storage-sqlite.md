@@ -37,3 +37,9 @@ Graf, frontier i stan prób muszą być aktualizowane atomowo i przetrwać zabic
 - Jedno połączenie i transakcje `BEGIN IMMEDIATE` serializowane w procesie. Zagnieżdżanie jest zabronione. Wyjątek albo anulowanie oznacza rollback. Blokada workspace `.mapcue/lock` (`WorkspaceLock`) to wyłączna blokada pliku zwalniana przez system przy śmierci procesu (R-11).
 - Identyfikatory obiektów grafu (stan, ekran, krawędź, zadanie, snapshot, dowód, kontekst) pochodzą z treści (hash), więc ten sam wkład daje ten sam graf. Generatora `IIdGenerator` używają tylko zdarzenia outboxa.
 - Artefakty: `FileSystemArtifactStore` redaguje tekst (`IRedactor`) przed hashowaniem i zapisem (plik tymczasowy, `fsync`, rename). Binarnie można zapisać tylko `Screenshot`. `mapcue gc` jeszcze nie istnieje.
+
+## Implementacja w STEP-06
+
+- Migracja `0005_leases_recovery`: `frontier_tasks.represented_by`, `task_attempts.run_id`, tabela `device_leases` (klucz `device_id`) i indeks `(status, lease_owner)`.
+- Claim to warunkowy `UPDATE … WHERE status = 'Pending'`, więc dwóch właścicieli nie może wziąć tego samego zadania. Idempotencję próby daje `attempt_id` jako `PRIMARY KEY` (plus `UNIQUE(task_id, n)`), a obserwacji: `attempt_id` jako klucz `action_observations`.
+- Jeden zapisujący pozostaje założeniem MVP (R-11). Lease mają czas wygaśnięcia, ale przy blokadzie workspace (`WorkspaceLockHeld`) nie trzeba na nie czekać: każdy obcy lease należy do martwego procesu. Wygasanie ma znaczenie dopiero dla przyszłego store z wieloma zapisującymi.

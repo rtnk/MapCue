@@ -215,6 +215,20 @@ Fazy próby (journal, zapis przed efektem): `Created → RestoreStarted → Rest
 - **Zakończenie:** brak zadań `Pending` daje `Exhausted`; pozostałe zadania `Blocked` dają `AllRemainingBlocked`.
 - **Determinizm:** identyfikatory grafu pochodzą z treści, identyfikatory prób z `(taskId, n)`, a `SeededIdGenerator` (`--seed`) ustala identyfikatory runu, zdarzeń i checkpointów.
 
+### 5.6 Implementacja w STEP-06 (frontier scheduler)
+
+`ExplorationEngine` dostał lease, dziennik faz, rekoncyliację i `FrontierScheduler` (migracja `0005`):
+
+- **Claim i lease:** zadanie przechodzi `Pending → Leased` warunkowym `UPDATE … WHERE status = 'Pending'` (`TryLeaseTaskAsync`), z właścicielem = `runId` i `LeaseDuration` (domyślnie 10 min). Dla `ExploreAction` w tej samej transakcji powstaje próba w fazie `Created` (`attemptId = H(taskId, n)`, `PRIMARY KEY`, `UNIQUE(task_id, n)`, kolumna `run_id`). Każda kolejna faza odnawia lease.
+- **Dzierżawa urządzenia:** tabela `device_leases` (jeden run na urządzenie). Preflight jej nie dostaje, gdy inny run ma niewygasłą dzierżawę (`PreflightFailed`). Run odnawia ją w każdej iteracji pętli i zwalnia przy zakończeniu.
+- **Fazy próby** zapisywane przed efektem: `Created → RestoreStarted → RestoreVerified → PreObserved → PolicyChecked → ActionDispatched → ActionReturned → PostObserved → Committed`. `Classified` nie jest osobną fazą: rozpoznanie celu odbywa się w transakcji commitu. Commit ustawia końcowy status zadania (`Completed`, `Failed`, `OutcomeUnknown`) i zwalnia lease w tej samej transakcji. Zakończenie bez commitu (blokada, budżet, błąd) to próba `Abandoned` przed `ActionDispatched`, a po niej `OutcomeUnknown`.
+- **Rekoncyliacja** na starcie runu, tylko z bazy (bez sesji LLM). Gdy wywołujący trzyma blokadę workspace (`WorkspaceLockHeld`, CLI zawsze), każdy inny lease i niezakończony run należą do martwego procesu: run dostaje `Finished(Failed)` z opisem `interrupted`, jego dzierżawy urządzeń są zwalniane. Bez blokady odzyskiwane są tylko wygasłe lease zadań. Zadanie z ostatnią fazą przed `ActionDispatched` wraca do `Pending` (próba `Abandoned`), a po więcej niż `budgets.maxRetries` przerwaniach dostaje `Failed`. Od `ActionDispatched` akcja mogła się wykonać, więc zadanie dostaje `OutcomeUnknown` bez ponowienia (decyzja według klasy ryzyka: STEP-09). Próba `Committed` zostaje bez zmian.
+- **Kolejność (`FrontierScheduler`):** najpierw `AnalyzeState`. Potem `ExploreAction` według: lokalności (liczba akcji do stanu źródłowego: BFS od bieżącego stanu, inaczej reset + ścieżka od stanu startowego, nieosiągalne na końcu), ryzyka (priorytet statyczny: `safe`/`navigational` 0, `back` −1, `stateChanging`/`unknown` −2, pozostałe −3), nowości (akcja jeszcze nie zaobserwowana z innego stanu przed znaną), głębokości i sekwencji utworzenia.
+- **`representedBy`:** wiersze list (elementy z `listTemplate`) ponad `budgets.maxListRowsPerTemplate` na szablon są zapisywane jako zadania `Cancelled` z `represented_by` = zadanie pierwszego wiersza. Analiza i planowanie jej akcji to jedna transakcja.
+- **Budżety per run:** run nie zaczyna zadania, którego szacowany koszt (ścieżka + akcja, reset + ścieżka) przekracza resztę `maxActions`. Daje to przewidywalny punkt zatrzymania: ten sam wkład zatrzymuje się w tym samym miejscu, a zadanie zostaje `Pending` dla kolejnego runu. `maxStates` i `maxScreens` liczą stany i ekrany odkryte w tym runie, a budżet reasonera (`agent.max*`) też jest per run. Budżet wyczerpany w trakcie zadania (np. rozbieżna nawigacja) oddaje je do `Pending`.
+- **Zakończenie:** `Exhausted` tylko wtedy, gdy w kontekście nie ma zadań `Pending`, `Blocked` ani zadań w lease innego runu. W pozostałych przypadkach `AllRemainingBlocked` z liczbami w `detail`.
+- **Testy:** proces potomny (`tests/MapCue.EndToEnd.CrashHost`) zabija się (`SIGKILL`) po każdej fazie próby. Kolejny run w tym samym workspace kończy eksplorację bez utraty postępu i bez podwójnych commitów (jedna obserwacja na próbę, `observationCount` = liczba obserwacji).
+
 ## 6. Model danych (ScreenGraph)
 
 ```mermaid
@@ -438,10 +452,10 @@ Hipotezy (np. `guard`) zapisuje się jako `inferred`. Status `observed` dostają
 | Budżet | Domyślnie | Zakres |
 |---|---|---|
 | `maxDepth` | 8 | długość ścieżki od stanu startowego |
-| `maxScreens` / `maxStates` | 40 / 120 | |
+| `maxScreens` / `maxStates` | 40 / 120 | od STEP-06 per run (nowe ekrany i stany runu) |
 | `maxActions` | 300 | wykonane akcje urządzenia na run |
 | `maxDuration` | 60 min | |
-| `maxRetries` | 2 | tylko infrastruktura |
+| `maxRetries` | 2 | tylko infrastruktura; od STEP-06 liczba przerwań zadania przed `ActionDispatched`, po której zadanie dostaje `Failed` |
 | `maxListRowsPerTemplate` | 2 | reszta wierszy jako `representedBy` |
 | `uiSettleTimeout` / `actionTimeout` / `observeTimeout` | 5 s / 30 s / 20 s | twarde timeouty z zabiciem procesu |
 | `agent.maxCalls` / `agent.maxTokens` / `agent.maxCostUsd` | 100 / 1 000 000 / 5 | nieznany koszt jest liczony jako `unknown`, a limit tokenów działa nadal |

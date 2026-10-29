@@ -82,6 +82,6 @@ public sealed class RunStoreTests : IDisposable
         }
 
         using var upgraded = SqliteStateStore.Open(_path, _clock);
-        Assert.Equal(4, SqliteMigrator.LatestVersion);
+        Assert.True(SqliteMigrator.LatestVersion >= 4);
     }
 }

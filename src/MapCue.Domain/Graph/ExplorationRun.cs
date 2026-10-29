@@ -22,7 +22,12 @@ public enum RunFinishReason
     Failed,
 }
 
-/// <summary>Counters of a run, kept with the run row and reported by <c>mapcue status</c>.</summary>
+/// <summary>
+/// Counters of a run, kept with the run row and reported by <c>mapcue status</c>. <see cref="NewScreens"/> and
+/// <see cref="RunCounters.NewStates"/> are what this run discovered (budgets.maxScreens and maxStates are per run);
+/// <see cref="RecoveredTasks"/> are tasks of interrupted runs reconciled at the start; <see cref="RepresentedTasks"/> are list rows
+/// left unexplored because other rows of the same template stand for them.
+/// </summary>
 public sealed record RunCounters(
     int Analyses,
     int Attempts,
@@ -35,6 +40,15 @@ public sealed record RunCounters(
     int OutcomeUnknown)
 {
     public static RunCounters Zero { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    public int NewScreens { get; init; }
+
+    public int RecoveredTasks { get; init; }
+
+    public int RepresentedTasks { get; init; }
+
+    /// <summary>Device operations charged to <c>budgets.maxActions</c>: explored actions, navigation steps and resets.</summary>
+    public int ChargedActions => DeviceActions + NavigationActions + Resets;
 }
 
 /// <summary>
@@ -55,3 +69,9 @@ public sealed record ExplorationRun(
     RunCounters Counters,
     DateTimeOffset StartedAt,
     DateTimeOffset? EndedAt);
+
+/// <summary>
+/// Exclusive lease of a device by one run (architecture §5.1: one UI executor per device). The owner renews it while it runs and
+/// releases it when it finishes; a lease of a run that died is reclaimed by reconciliation, or by anyone once it expired.
+/// </summary>
+public sealed record DeviceLease(string DeviceId, string OwnerRunId, DateTimeOffset AcquiredAt, DateTimeOffset ExpiresAt);

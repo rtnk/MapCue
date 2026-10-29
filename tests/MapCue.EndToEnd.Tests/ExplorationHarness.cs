@@ -17,8 +17,11 @@ namespace MapCue.EndToEnd.Tests;
 /// <summary>A workspace (SQLite + blobs + runs) with the exploration engine wired to a <see cref="FakeDevice"/>.</summary>
 internal sealed class ExplorationHarness : IAsyncDisposable
 {
-    private ExplorationHarness(string root, FakeDevice device, ManualClock clock, SqliteStateStore store, FileSystemArtifactStore artifacts, PatternRedactor redactor, MapCueSettings settings)
+    private readonly bool _ownsRoot;
+
+    private ExplorationHarness(string root, bool ownsRoot, FakeDevice device, ManualClock clock, SqliteStateStore store, FileSystemArtifactStore artifacts, PatternRedactor redactor, MapCueSettings settings)
     {
+        _ownsRoot = ownsRoot;
         Root = root;
         Device = device;
         Clock = clock;
@@ -68,15 +71,25 @@ internal sealed class ExplorationHarness : IAsyncDisposable
     public static ProfileSettings Profile { get; } =
         new("basic", Platform.Android, FakeDemoApp.AppId, "test", DataIsolation.SharedReadOnly, [], []) { SetupFlow = "setup-basic.yaml" };
 
-    public static ExplorationHarness Create(FakeAppModel? app = null, MapCueSettings? settings = null)
+    public static ExplorationHarness Create(FakeAppModel? app = null, MapCueSettings? settings = null) => Open(NewRoot(), app, settings, ownsRoot: true);
+
+    /// <summary>A new workspace directory with the setup flow file (deleted by the harness that owns it).</summary>
+    public static string NewRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "mapcue-e2e-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         File.WriteAllText(Path.Combine(root, "setup-basic.yaml"), "appId: com.mapcue.demoapp\n---\n- launchApp\n");
+        return root;
+    }
+
+    /// <summary>Opens the workspace in <paramref name="root"/> with a fresh fake device (a new process sees the app restarted).</summary>
+    public static ExplorationHarness Open(string root, FakeAppModel? app = null, MapCueSettings? settings = null, bool ownsRoot = false)
+    {
         var clock = new ManualClock();
         var redactor = new PatternRedactor();
         return new ExplorationHarness(
             root,
+            ownsRoot,
             new FakeDevice(app ?? FakeDemoApp.Basic(), clock),
             clock,
             SqliteStateStore.Open(Path.Combine(root, "mapcue.db"), clock),
@@ -100,17 +113,17 @@ internal sealed class ExplorationHarness : IAsyncDisposable
         MinFreeBytes = 0,
     };
 
-    public Task<ExplorationResult> RunAsync(IExplorationReasoner? reasoner = null, string? seed = "seed-1", CancellationToken ct = default) =>
-        Engine(reasoner, seed).RunAsync(Options(seed), ct);
+    public Task<ExplorationResult> RunAsync(IExplorationReasoner? reasoner = null, string? seed = "seed-1", MapCueSettings? settings = null, CancellationToken ct = default) =>
+        Engine(reasoner, seed, settings).RunAsync(Options(seed), ct);
 
-    public ExplorationEngine Engine(IExplorationReasoner? reasoner = null, string? seed = "seed-1") =>
+    public ExplorationEngine Engine(IExplorationReasoner? reasoner = null, string? seed = "seed-1", MapCueSettings? settings = null, IDeviceAutomation? device = null) =>
         new(
-            Device,
+            device ?? Device,
             Store,
             Artifacts,
             Redactor,
-            reasoner ?? new RuleBasedReasoner(new RiskClassifier(Settings.Policy.RiskRules)),
-            Settings,
+            reasoner ?? new RuleBasedReasoner(new RiskClassifier((settings ?? Settings).Policy.RiskRules)),
+            settings ?? Settings,
             Clock,
             seed is null ? new SequentialIdGenerator() : new SeededIdGenerator(seed));
 
@@ -121,6 +134,11 @@ internal sealed class ExplorationHarness : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Store.DisposeAsync();
+        if (!_ownsRoot)
+        {
+            return;
+        }
+
         try
         {
             Directory.Delete(Root, recursive: true);

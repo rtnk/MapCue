@@ -4,7 +4,7 @@
 
 - Status: **DONE** (zakres ROADMAP STEP-05 zrealizowany; demo na emulatorze PASS w CI; lokalnie bez urządzenia, R-09). Merge wykonuje Robert.
 - Branch: `feat/step-05-vertical-slice` (nazwa z promptu etapu; środowisko sesji nie wyznaczyło innego brancha)
-- PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/8> (open, czeka na review i merge)
+- PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/8> (merged 2026-10-26, merge commit `044c5e4`)
 - Commit SHA: kod i dokumentacja do `9c515e3`; ten handoff jest w kolejnym commicie na tym samym branchu, więc aktualny head jest w PR. Demo na emulatorze wykonano na commicie `9bd464c` (silnik przed poprawkami z przeglądu `25414f3`); CI PR uruchamia je ponownie na head.
 - Base branch/SHA: `main` @ `b99b1956453d9180c60fa45f0be5775913abb25a` (merge PR #7; CI run 40358579524 success, Demo app run 40358579569 success)
 - Data i środowisko: 2026-10-26. Lokalnie: kontener Linux x86_64 (Ubuntu 24.04), .NET SDK 10.0.113 (pakiet `dotnet-sdk-10.0`, doinstalowany w sesji), bez urządzenia, Android SDK i TapCue (R-09). Emulator: GitHub Actions `ubuntu-24.04` z KVM, Android API 34 `google_apis` x86_64, TapCue 0.1.0 (archiwum z przypiętym SHA-256), Zulu JDK 17, APK demo z artefaktu `demo-apk` tego samego runu.

@@ -16,6 +16,8 @@ public sealed record ActionSpec(ActionType Type, string CanonicalSelector, strin
 /// <see cref="AttemptId"/> makes the commit idempotent. An attempt journaled earlier keeps its number; otherwise the commit
 /// numbers it after the existing attempts of its task. <see cref="AttemptEvidence"/> is stored evidence of the attempt that is not a
 /// graph snapshot (tool output, or the screen outside the app after the action left it); it is recorded with the attempt id.
+/// <see cref="TaskStatus"/> is the status the explore task ends with, written in the same transaction (its lease is released), so a
+/// crash right after the commit never leaves the task leased or with a status that contradicts the attempt.
 /// </summary>
 public sealed record AttemptCommit(
     ExplorationContext Context,
@@ -29,16 +31,37 @@ public sealed record AttemptCommit(
     string ReasonerPromptVersion = GraphCommitter.NoReasonerPromptVersion)
 {
     public IReadOnlyList<Evidence> AttemptEvidence { get; init; } = [];
+
+    public FrontierTaskStatus TaskStatus { get; init; } = FrontierTaskStatus.Completed;
+
+    /// <summary>The run that made the attempt (null for imports).</summary>
+    public string? RunId { get; init; }
 }
 
-/// <summary>An accepted action to explore from a state: its graph spec, the validated device action and the pre-execution check data.</summary>
-public sealed record ScheduledAction(ActionSpec Spec, ValidatedDeviceAction Action, string? ElementKey, string ExpectedIdentityHash, int Priority = 0);
+/// <summary>
+/// An accepted action to explore from a state: its graph spec, the validated device action and the pre-execution check data.
+/// <see cref="RepresentedByActionKey"/> is set for a list row beyond <c>budgets.maxListRowsPerTemplate</c>: the action of the row that
+/// stands for it. Such a task is stored <see cref="FrontierTaskStatus.Cancelled"/> with <see cref="FrontierTask.RepresentedBy"/>.
+/// </summary>
+public sealed record ScheduledAction(ActionSpec Spec, ValidatedDeviceAction Action, string? ElementKey, string ExpectedIdentityHash, int Priority = 0)
+{
+    public string? RepresentedByActionKey { get; init; }
+}
+
+/// <summary>Result of scheduling actions: new tasks (executable and represented) and how many of them are represented by another row.</summary>
+public sealed record ScheduleResult(int Created, int Represented);
 
 /// <summary>Result of an observation commit.</summary>
-public sealed record ObservationCommitResult(string StateId, string ScreenId, ResolutionKind Resolution, bool NewState, bool NewVariant, int NewTasks);
+public sealed record ObservationCommitResult(string StateId, string ScreenId, ResolutionKind Resolution, bool NewState, bool NewVariant, int NewTasks)
+{
+    public bool NewScreen { get; init; }
+}
 
 /// <summary>Result of an attempt commit. <see cref="AlreadyCommitted"/> means the attempt was committed before and nothing changed.</summary>
-public sealed record AttemptCommitResult(bool AlreadyCommitted, string FromStateId, string? ToStateId, string EdgeId, EdgeStatus EdgeStatus, IReadOnlyList<string> NewStateIds, int NewVariants, int NewTasks);
+public sealed record AttemptCommitResult(bool AlreadyCommitted, string FromStateId, string? ToStateId, string EdgeId, EdgeStatus EdgeStatus, IReadOnlyList<string> NewStateIds, int NewVariants, int NewTasks)
+{
+    public int NewScreens { get; init; }
+}
 
 /// <summary>Event types written to the outbox by <see cref="GraphCommitter"/>.</summary>
 public static class GraphEventTypes
@@ -79,7 +102,7 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
                 await uow.Graph.UpsertContextAsync(context, now, ct);
                 var placed = await PlaceAsync(uow, context, snapshot, attemptId: null, now, ct);
                 var newTasks = await AddAnalyzeTaskAsync(uow, context, placed, depth: 0, reasonerPromptVersion, now, ct);
-                return new ObservationCommitResult(placed.StateId, placed.ScreenId, placed.Resolution, placed.NewState, placed.NewVariant, newTasks);
+                return new ObservationCommitResult(placed.StateId, placed.ScreenId, placed.Resolution, placed.NewState, placed.NewVariant, newTasks) { NewScreen = placed.NewScreen };
             },
             ct);
     }
@@ -161,21 +184,22 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
 
         await AppendAsync(uow, GraphEventTypes.EdgeObserved, now, context, edge.EdgeId, new() { ["attemptId"] = commit.AttemptId, ["outcome"] = commit.Outcome.ToString(), ["toStateId"] = target?.StateId }, ct);
 
-        // The explore task of this (state, action, context) is completed by this attempt; a later identical pair never re-creates it.
+        // The explore task of this (state, action, context) ends with this attempt (released lease, final status in this transaction);
+        // a later identical pair never re-creates it.
         var newTasks = 0;
         var taskKey = TaskKeys.ExploreAction(from.StateId, actionKey, context);
         var task = await uow.Frontier.GetTaskByKeyAsync(taskKey, ct);
         if (task is null)
         {
-            task = NewTask(taskKey, TaskType.ExploreAction, context, from.StateId, actionKey, commit.Depth, now) with { Status = FrontierTaskStatus.Completed };
+            task = NewTask(taskKey, TaskType.ExploreAction, context, from.StateId, actionKey, commit.Depth, now) with { Status = commit.TaskStatus };
             await uow.Frontier.InsertTaskIfAbsentAsync(task, ct);
             task = await uow.Frontier.GetTaskByKeyAsync(taskKey, ct);
             newTasks++;
             await AppendAsync(uow, GraphEventTypes.TaskCreated, now, context, task!.TaskId, new() { ["type"] = task.Type.ToString(), ["status"] = task.Status.ToString() }, ct);
         }
-        else if (task.Status is not FrontierTaskStatus.Completed)
+        else if (task.Status != commit.TaskStatus || task.LeaseOwner is not null)
         {
-            await uow.Frontier.UpdateTaskAsync(task with { Status = FrontierTaskStatus.Completed, LeaseOwner = null, LeaseExpiresAt = null, UpdatedAt = now }, ct);
+            await uow.Frontier.UpdateTaskAsync(task with { Status = commit.TaskStatus, LeaseOwner = null, LeaseExpiresAt = null, UpdatedAt = now }, ct);
         }
 
         var journaled = await uow.Frontier.GetAttemptAsync(commit.AttemptId, ct);
@@ -183,7 +207,7 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
         {
             var previous = await uow.Frontier.ListAttemptsAsync(task.TaskId, ct);
             var n = previous.Count == 0 ? 1 : previous.Max(a => a.N) + 1;
-            await uow.Frontier.InsertAttemptIfAbsentAsync(new TaskAttempt(commit.AttemptId, task.TaskId, n, AttemptPhase.Committed, commit.Outcome, null, null, now, now), ct);
+            await uow.Frontier.InsertAttemptIfAbsentAsync(new TaskAttempt(commit.AttemptId, task.TaskId, n, AttemptPhase.Committed, commit.Outcome, null, null, now, now) { RunId = commit.RunId }, ct);
         }
         else
         {
@@ -200,15 +224,17 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
 
         var newStates = new[] { from, to }.Where(p => p is { NewState: true }).Select(p => p!.StateId).Distinct(StringComparer.Ordinal).ToList();
         var newVariants = new[] { from, to }.Count(p => p is { NewVariant: true });
-        return new AttemptCommitResult(false, from.StateId, target?.StateId, edge.EdgeId, edge.Status, newStates, newVariants, newTasks);
+        var newScreens = new[] { from, to }.Where(p => p is { NewScreen: true }).Select(p => p!.ScreenId).Distinct(StringComparer.Ordinal).Count();
+        return new AttemptCommitResult(false, from.StateId, target?.StateId, edge.EdgeId, edge.Status, newStates, newVariants, newTasks) { NewScreens = newScreens };
     }
 
     /// <summary>
     /// Schedules <c>ExploreAction</c> tasks for accepted actions of a state, each with its validated action, in one transaction
-    /// (<c>ON CONFLICT DO NOTHING</c>: a known (state, action, context) pair is never scheduled twice, architecture §7.4).
-    /// Returns the number of new tasks.
+    /// (<c>ON CONFLICT DO NOTHING</c>: a known (state, action, context) pair is never scheduled twice, architecture §7.4). A represented
+    /// list row is stored as a cancelled task pointing at its representative. <paramref name="completeTaskId"/> (the analysis that
+    /// proposed the actions) is completed in the same transaction, so a crash never loses or half-applies an analysis.
     /// </summary>
-    public Task<int> ScheduleActionsAsync(ExplorationContext context, string fromStateId, int depth, IReadOnlyList<ScheduledAction> actions, CancellationToken ct)
+    public Task<ScheduleResult> ScheduleActionsAsync(ExplorationContext context, string fromStateId, int depth, IReadOnlyList<ScheduledAction> actions, CancellationToken ct, string? completeTaskId = null)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(actions);
@@ -217,6 +243,7 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
             {
                 var now = clock.UtcNow;
                 var created = 0;
+                var represented = 0;
                 foreach (var scheduled in actions)
                 {
                     var spec = scheduled.Spec;
@@ -225,22 +252,36 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
                         ct);
                     var key = TaskKeys.ExploreAction(fromStateId, spec.ActionKey, context);
                     var task = NewTask(key, TaskType.ExploreAction, context, fromStateId, spec.ActionKey, depth, now) with { Priority = scheduled.Priority };
+                    if (scheduled.RepresentedByActionKey is { } representative)
+                    {
+                        task = task with { Status = FrontierTaskStatus.Cancelled, RepresentedBy = TaskIdOf(TaskKeys.ExploreAction(fromStateId, representative, context)) };
+                    }
+
                     if (!await uow.Frontier.InsertTaskIfAbsentAsync(task, ct))
                     {
                         continue;
                     }
 
                     await uow.Frontier.InsertTaskActionIfAbsentAsync(new TaskAction(task.TaskId, scheduled.Action, scheduled.ElementKey, scheduled.ExpectedIdentityHash, now), ct);
-                    await AppendAsync(uow, GraphEventTypes.TaskCreated, now, context, task.TaskId, new() { ["type"] = task.Type.ToString(), ["status"] = task.Status.ToString(), ["actionKey"] = spec.ActionKey }, ct);
+                    await AppendAsync(uow, GraphEventTypes.TaskCreated, now, context, task.TaskId, new() { ["type"] = task.Type.ToString(), ["status"] = task.Status.ToString(), ["actionKey"] = spec.ActionKey, ["representedBy"] = task.RepresentedBy }, ct);
                     created++;
+                    represented += task.RepresentedBy is null ? 0 : 1;
                 }
 
-                return created;
+                if (completeTaskId is not null && await uow.Frontier.GetTaskAsync(completeTaskId, ct) is { } analysis)
+                {
+                    await uow.Frontier.UpdateTaskAsync(analysis with { Status = FrontierTaskStatus.Completed, LeaseOwner = null, LeaseExpiresAt = null, UpdatedAt = now }, ct);
+                }
+
+                return new ScheduleResult(created, represented);
             },
             ct);
     }
 
-    private sealed record Placement(string StateId, string ScreenId, string SnapshotId, ResolutionKind Resolution, bool NewState, bool NewVariant);
+    /// <summary>Task id of a task key (content-derived, so a representative's id is known before it is stored).</summary>
+    public static string TaskIdOf(string taskKey) => ContentHash.ShortId("task", taskKey);
+
+    private sealed record Placement(string StateId, string ScreenId, string SnapshotId, ResolutionKind Resolution, bool NewState, bool NewVariant, bool NewScreen);
 
     /// <summary>Resolves the identity of a recorded snapshot, creates screen/state when needed and upserts the variant, snapshot and evidence.</summary>
     private async Task<Placement> PlaceAsync(IUnitOfWork uow, ExplorationContext context, RecordedSnapshot recorded, string? attemptId, DateTimeOffset now, CancellationToken ct)
@@ -254,6 +295,7 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
         string stateId;
         string screenId;
         var newState = false;
+        var newScreen = false;
         switch (resolution.Kind)
         {
             case ResolutionKind.KnownState:
@@ -266,9 +308,10 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
                 await uow.Graph.AddIdentityAliasAsync(normalized.IdentityHash, normalized.FingerprintVersion, stateId, resolution.Similarity, now, ct);
                 break;
             default:
-                screenId = resolution.Kind == ResolutionKind.NewStateOfScreen
-                    ? resolution.ScreenId!
-                    : await CreateScreenAsync(uow, context, normalized, now, ct);
+                newScreen = resolution.Kind != ResolutionKind.NewStateOfScreen;
+                screenId = newScreen
+                    ? await CreateScreenAsync(uow, context, normalized, now, ct)
+                    : resolution.ScreenId!;
                 stateId = StateIdOf(normalized);
                 await uow.Graph.InsertStateAsync(
                     new ScreenState(stateId, screenId, normalized.StateKind, normalized.IdentityHash, normalized.FingerprintVersion, normalized.IdentityTokens, normalized.ElementSetKeys, IdentityStatus.Provisional, now),
@@ -317,7 +360,7 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
             await AppendAsync(uow, GraphEventTypes.SnapshotRecorded, now, context, snapshot.SnapshotId, new() { ["stateId"] = stateId, ["identityHash"] = normalized.IdentityHash }, ct);
         }
 
-        return new Placement(stateId, screenId, snapshot.SnapshotId, resolution.Kind, newState, newVariant);
+        return new Placement(stateId, screenId, snapshot.SnapshotId, resolution.Kind, newState, newVariant, newScreen);
     }
 
     private async Task<string> CreateScreenAsync(IUnitOfWork uow, ExplorationContext context, NormalizedSnapshot normalized, DateTimeOffset now, CancellationToken ct)
@@ -348,7 +391,7 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
     }
 
     private static FrontierTask NewTask(string taskKey, TaskType type, ExplorationContext context, string? fromStateId, string? actionKey, int depth, DateTimeOffset now) =>
-        new(ContentHash.ShortId("task", taskKey), taskKey, type, FrontierTaskStatus.Pending, 0, depth, context.ContextId, fromStateId, actionKey, null, null, null, null, 0, now, now);
+        new(TaskIdOf(taskKey), taskKey, type, FrontierTaskStatus.Pending, 0, depth, context.ContextId, fromStateId, actionKey, null, null, null, null, 0, now, now);
 
     private static string StateIdOf(NormalizedSnapshot normalized) =>
         ContentHash.ShortId("st", ContentHash.Of("mapcue.state/1", normalized.IdentityHash, normalized.FingerprintVersion.ToString(CultureInfo.InvariantCulture)));

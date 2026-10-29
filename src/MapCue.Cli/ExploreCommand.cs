@@ -18,8 +18,8 @@ using Microsoft.Extensions.Logging;
 namespace MapCue.Cli;
 
 /// <summary>
-/// <c>mapcue explore</c> (STEP-05): validates the configuration, locks the workspace and runs <see cref="ExplorationEngine"/> for one
-/// profile on one device through TapCue. Exit codes: 0 when the run finished normally (exhausted, budget or all remaining tasks
+/// <c>mapcue explore</c> (STEP-05, STEP-06): validates the configuration, locks the workspace and runs <see cref="ExplorationEngine"/>
+/// for one profile on one device through TapCue; holding the lock, the run first reconciles what an interrupted run left behind. Exit codes: 0 when the run finished normally (exhausted, budget or all remaining tasks
 /// blocked), <see cref="ExitCodes.PreflightFailed"/>, <see cref="ExitCodes.RunFailed"/> (error or cancellation).
 /// </summary>
 internal static class ExploreCommand
@@ -162,6 +162,9 @@ internal static class ExploreCommand
                                 AppBuildId = parse.GetValue(buildOption)!,
                                 InputValues = inputs.Values.ToList(),
                                 Progress = output.WriteLine,
+
+                                // The workspace lock is held: leases of other runs belong to dead processes and are reconciled at once.
+                                WorkspaceLockHeld = true,
                             },
                             ct);
 

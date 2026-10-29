@@ -75,7 +75,7 @@ public class SqliteStoreTests
         Assert.Throws<InvalidOperationException>(() => SqliteMigrator.Parse([("0001_a.sql", ""), ("0003_c.sql", "")]));
         Assert.Throws<InvalidOperationException>(() => SqliteMigrator.Parse([("1_a.sql", "")]));
         Assert.Equal([1, 2], SqliteMigrator.Parse([("0002_b.sql", ""), ("0001_a.sql", "")]).Select(m => m.Version));
-        Assert.Equal(["graph_core", "edges_frontier_outbox", "agent_calls", "runs_task_actions"], SqliteMigrator.Embedded.Select(m => m.Name));
+        Assert.Equal(["graph_core", "edges_frontier_outbox", "agent_calls", "runs_task_actions", "leases_recovery"], SqliteMigrator.Embedded.Select(m => m.Name));
     }
 
     [Fact]

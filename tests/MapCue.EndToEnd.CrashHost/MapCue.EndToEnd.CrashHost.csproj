@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Child process of the kill tests (STEP-06): explores the demo model and kills itself at one attempt phase. Not a test project. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MapCue.Application\MapCue.Application.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Domain\MapCue.Domain.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Adapters.Reasoning\MapCue.Adapters.Reasoning.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Sqlite\MapCue.Infrastructure.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\MapCue.Infrastructure.Artifacts\MapCue.Infrastructure.Artifacts.csproj" />
+    <ProjectReference Include="..\MapCue.Testing\MapCue.Testing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The same wiring as the in-process end-to-end tests. -->
+    <Compile Include="..\MapCue.EndToEnd.Tests\ExplorationHarness.cs" Link="ExplorationHarness.cs" />
+  </ItemGroup>
+</Project>

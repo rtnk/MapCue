@@ -102,9 +102,9 @@ internal static class StatusCommand
                     output.WriteLine($"detail     {host.Redactor.Redact(run.Detail, new("console")).Text}");
                 }
 
-                output.WriteLine($"counters   analyses={c.Analyses} attempts={c.Attempts} actions={c.DeviceActions} navigation={c.NavigationActions} resets={c.Resets} new-states={c.NewStates} app-left={c.AppLeft} blocked={c.Blocked} outcome-unknown={c.OutcomeUnknown}");
+                output.WriteLine($"counters   analyses={c.Analyses} attempts={c.Attempts} actions={c.DeviceActions} navigation={c.NavigationActions} resets={c.Resets} new-states={c.NewStates} new-screens={c.NewScreens} app-left={c.AppLeft} blocked={c.Blocked} outcome-unknown={c.OutcomeUnknown} recovered={c.RecoveredTasks} represented={c.RepresentedTasks}");
                 output.WriteLine($"graph      screens={summary.Screens} states={summary.States} variants={summary.Variants} edges={summary.Edges} observations={summary.Observations}");
-                output.WriteLine($"frontier   pending={stats.Pending} completed={stats.Completed} blocked={stats.Blocked} failed={stats.Failed} outcome-unknown={stats.OutcomeUnknown} cancelled={stats.Cancelled}");
+                output.WriteLine($"frontier   pending={stats.Pending} leased={stats.Leased} completed={stats.Completed} blocked={stats.Blocked} failed={stats.Failed} outcome-unknown={stats.OutcomeUnknown} cancelled={stats.Cancelled}");
                 logger.LogInformation("Status of run {RunId} shown", run.RunId);
                 return ExitCodes.Success;
             }

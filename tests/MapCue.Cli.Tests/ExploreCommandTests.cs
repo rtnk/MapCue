@@ -94,7 +94,7 @@ public sealed class ExploreCommandTests : IDisposable
         Assert.Matches(@"run        run_[0-9a-f]+ status=Finished reason=Exhausted", status);
         Assert.Contains("profile    basic context=ctx_", status, StringComparison.Ordinal);
         Assert.Contains("device=fake-emulator-1 reasoner=rule-based", status, StringComparison.Ordinal);
-        Assert.Matches(@"frontier   pending=0 completed=\d+", status);
+        Assert.Matches(@"frontier   pending=0 leased=0 completed=\d+", status);
 
         var (byWorkspace, again, _) = await RunAsync(null, "status", "--workspace", Workspace);
         Assert.Equal(ExitCodes.Success, byWorkspace);
