@@ -1,4 +1,5 @@
-# MapCue exploration of the demo app (STEP-05 vertical slice): profile `basic`, rule-based reasoner (no LLM), Android emulator.
+# MapCue exploration of the demo app (STEP-05 vertical slice, STEP-07 profiles): profiles `basic` and `investor` explored one after the
+# other in one workspace (one run per profile), rule-based reasoner (no LLM), Android emulator.
 # Used by .github/workflows/demo-app.yml (job android-explore) through run-explore.sh; expected map: expected-graph.md.
 schemaVersion: mapcue.config/1
 workspace: .mapcue-demo
@@ -19,17 +20,16 @@ budgets:
 agent:
   reasoner: rule-based
 
-# Choosing the other test profile inside the `basic` context would mix profiles (STEP-07 explores profiles separately).
+# A run never switches to another profile (the default, written out here): the other profile's switchElements are account changes.
 policy:
-  riskRules:
-    - name: other-profile
-      riskClass: accountChange
-      resourceId: com.mapcue.demoapp:id/profile.investor
+  profileSwitch: deny
 
 # MAUI pages carry their AutomationId on the title label (screen.*): one marker per logical screen (expected-graph.md).
 identity:
   screenHints:
     - ':id/screen\.[A-Za-z0-9_.-]+$'
+  # A profile shows a few elements more or less on a shared screen (the Investments tab): a variant, not a new state (R-04).
+  profileVariantMaxDelta: 2
 
 profiles:
   - profileId: basic
@@ -39,3 +39,12 @@ profiles:
     dataIsolation: shared-readonly
     setupFlow: .tapcue/setup-basic.yaml
     capabilities: []
+    switchElements: [':id/profile\.basic$']
+  - profileId: investor
+    platform: android
+    appId: com.mapcue.demoapp
+    environment: test
+    dataIsolation: shared-readonly
+    setupFlow: .tapcue/setup-investor.yaml
+    capabilities: [investments]
+    switchElements: [':id/profile\.investor$']

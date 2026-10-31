@@ -10,7 +10,8 @@ using Microsoft.Extensions.Logging;
 namespace MapCue.Cli;
 
 /// <summary>
-/// <c>mapcue status</c> (STEP-05): the latest run (or <c>--run</c>) of a workspace with its counters, the graph and the frontier.
+/// <c>mapcue status</c> (STEP-05): the latest run (or <c>--run</c>) of a workspace with its counters, the graph and the frontier;
+/// <c>--profiles</c> (STEP-07) adds the profile comparison (<see cref="Application.Profiles.ProfileAnalysis"/>).
 /// Read-only: it does not take the workspace lock, so it also works while <c>mapcue explore</c> runs (SQLite WAL readers).
 /// The workspace comes from <c>--workspace</c>, else from the configuration (<c>--config</c>, default <c>mapcue.yaml</c> if it exists),
 /// else <c>.mapcue</c>.
@@ -22,10 +23,12 @@ internal static class StatusCommand
         var configOption = new Option<FileInfo?>("--config", "-c") { Description = $"Configuration whose workspace to read. Default: {MapCueCli.DefaultConfigPath} if it exists." };
         var workspaceOption = new Option<DirectoryInfo?>("--workspace", "-w") { Description = "Workspace directory (overrides the configuration)." };
         var runOption = new Option<string?>("--run") { Description = "Run id (default: the latest run)." };
+        var profilesOption = new Option<bool>("--profiles") { Description = "Also show the profile comparison: contexts, coverage matrix, equivalence classes and guard hypotheses (STEP-07)." };
         var command = new Command("status", "Show the state of the current or last run.");
         command.Options.Add(configOption);
         command.Options.Add(workspaceOption);
         command.Options.Add(runOption);
+        command.Options.Add(profilesOption);
         command.SetAction(async (parse, ct) =>
         {
             var output = parse.InvocationConfiguration.Output;
@@ -105,10 +108,43 @@ internal static class StatusCommand
                 output.WriteLine($"counters   analyses={c.Analyses} attempts={c.Attempts} actions={c.DeviceActions} navigation={c.NavigationActions} resets={c.Resets} new-states={c.NewStates} new-screens={c.NewScreens} app-left={c.AppLeft} blocked={c.Blocked} outcome-unknown={c.OutcomeUnknown} recovered={c.RecoveredTasks} represented={c.RepresentedTasks}");
                 output.WriteLine($"graph      screens={summary.Screens} states={summary.States} variants={summary.Variants} edges={summary.Edges} observations={summary.Observations}");
                 output.WriteLine($"frontier   pending={stats.Pending} leased={stats.Leased} completed={stats.Completed} blocked={stats.Blocked} failed={stats.Failed} outcome-unknown={stats.OutcomeUnknown} cancelled={stats.Cancelled}");
+                if (parse.GetValue(profilesOption))
+                {
+                    // Element keys carry (masked) labels: redacted like every console line.
+                    WriteProfiles(line => output.WriteLine(host.Redactor.Redact(line, new("console")).Text), await Application.Profiles.ProfileAnalysis.AnalyzeAsync(store, ct));
+                }
+
                 logger.LogInformation("Status of run {RunId} shown", run.RunId);
                 return ExitCodes.Success;
             }
         });
         return command;
+    }
+
+    /// <summary>The profile comparison as stable, line-oriented text (contexts by id, states by id; guards by group and element).</summary>
+    private static void WriteProfiles(Action<string> writeLine, Application.Profiles.ProfileReport report)
+    {
+        foreach (var c in report.Contexts)
+        {
+            writeLine($"context    {c.ContextId} profile={c.ProfileId} scenario={c.ScenarioId} build={c.AppBuildId} locale={c.Locale} capabilities=[{string.Join(',', c.Capabilities)}] states={c.States} edges={c.Edges} observed-edges={c.ObservedEdges} recipes={c.Recipes}");
+        }
+
+        foreach (var row in report.Coverage)
+        {
+            var cells = string.Join(' ', row.Cells.Select(c => c.Level == Application.Profiles.CoverageLevel.Observed
+                ? $"{c.ContextId}=observed(snapshots={c.Snapshots},edges={c.OutgoingEdges},recipe={(c.HasRecipe ? "yes" : "no")})"
+                : $"{c.ContextId}=notObserved"));
+            writeLine($"coverage   {row.StateId} {row.StateKind} {cells}");
+        }
+
+        foreach (var e in report.Equivalence)
+        {
+            writeLine($"equivalent {e.StateId} {string.Join(" | ", e.Classes.Select(c => string.Join(',', c)))}");
+        }
+
+        foreach (var g in report.Guards)
+        {
+            writeLine($"guard      {g.Level.ToString().ToLowerInvariant()} {g.ElementKey} capability={g.Capability ?? "-"} present=[{string.Join(',', g.PresentIn)}] absent=[{string.Join(',', g.AbsentIn)}] states={g.States.Count} evidence={g.EvidenceIds.Count}");
+        }
     }
 }

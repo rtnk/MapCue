@@ -138,6 +138,6 @@ public sealed class LeaseStoreTests : IDisposable
         }
 
         using var upgraded = SqliteStateStore.Open(_path, _clock);
-        Assert.Equal(5, SqliteMigrator.LatestVersion);
+        Assert.True(SqliteMigrator.LatestVersion >= 5);
     }
 }

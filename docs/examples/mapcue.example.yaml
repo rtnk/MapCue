@@ -43,6 +43,9 @@ agent:
 
 # Operator risk rules (STEP-04): matching elements get at least this risk class; rules never lower a risk.
 policy:
+  # STEP-07: a run never switches to another profile by default (deny): the other profiles' switchElements are account changes.
+  # allow classifies them like any other element (the context's graph may then mix profiles).
+  profileSwitch: deny
   riskRules:
     - name: blik
       riskClass: financial
@@ -56,6 +59,9 @@ policy:
 identity:
   screenHints:
     - ':id/screen\.[A-Za-z0-9_.-]+$'
+  # STEP-07 (R-04): with screen hints, a snapshot of another context that differs from a known state by at most this many identity
+  # tokens (same marker and state kind) is a profile variant of it, not a new state; 0 disables the rule.
+  profileVariantMaxDelta: 2
 
 profiles:
   - profileId: basic
@@ -71,6 +77,16 @@ profiles:
     capabilities: []
     # setupFlow: flows/setup-basic.yaml   # optional TapCue flow (relative to this file) from a clean start to the profile's
     #                                     # start state; without it `mapcue explore` starts the app with a plain launchApp
+    scenario: default                     # STEP-07: test data scenario (part of the exploration context)
+    locale: und                           # STEP-07: language tag of the app under this profile (part of the context)
+    switchElements: [':id/profile_basic$']  # STEP-07: resource-id patterns that switch the app to this profile
+  - profileId: investor
+    platform: android
+    appId: com.example.mapcue.demo
+    environment: test
+    dataIsolation: shared-readonly
+    capabilities: [investments]           # guard hypotheses: elements named like a capability (tab.investments) are inferred guards
+    switchElements: [':id/profile_investor$']
 
 # TapCue integration (optional; the values below are the defaults). docs/tapcue-compatibility.md §8.
 tapcue:

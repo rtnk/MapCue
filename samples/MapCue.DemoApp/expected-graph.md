@@ -86,7 +86,9 @@ Ryzyko to klasa, którą daje regułowy klasyfikator MapCue (`RiskClassifier`, b
 
 ## Różnice profili
 
-- `investor` ma zakładkę `tab.investments` i ekran 5. W `basic` nie ma tego elementu w drzewie (nie jest tylko ukryty). Guard `investments` z STEP-07 przechodzi z `inferred` do `observed` dopiero po eksploracji obu profili.
+- `investor` ma zakładkę `tab.investments` i ekran 5. W `basic` nie ma tego elementu w drzewie (nie jest tylko ukryty). Guard `investments` z STEP-07 przechodzi z `inferred` do `observed` dopiero po eksploracji obu profili. Profil `investor` deklaruje capability `investments` (`mapcue.demo.yaml`), a `mapcue status --profiles` pokazuje guard.
+- Zakładka zmienia zbiór tokenów tożsamości ekranów z paskiem: Home 6/7 ≈ 0,857, Accounts 6/7 (fingerprint v3: `accounts.list` z 2 i 3 wierszami to ta sama lista `many`; w v2 2 nieprzewijane wiersze nie były listą), Settings 7/8 ≈ 0,875. Mały margines nad `τ_state` dodatkowo zabezpiecza reguła wariantu profilu `identity.profileVariantMaxDelta` (ADR-0006, STEP-07). Oczekiwanie: jeden stan na znacznik ekranu w obu profilach.
+- Przycisk drugiego profilu na ekranie wyboru to zmiana profilu (`switchElements`, `policy.profileSwitch: deny`): w `basic` `profile.investor` nie jest wykonywany, a w `investor` `profile.basic`.
 - Accounts: `basic` ma 2 wiersze, `investor` 3. Oba dają ten sam `countBucket` (`many`), więc to ten sam stan. Scenariusz pusty daje inny stan (bez wierszy, `accounts.empty`).
 - Wspólne dla obu: ekrany 1–4 i 6–10, wszystkie cykle i blokada.
 

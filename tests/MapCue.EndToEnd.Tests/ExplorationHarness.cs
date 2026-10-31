@@ -71,6 +71,27 @@ internal sealed class ExplorationHarness : IAsyncDisposable
     public static ProfileSettings Profile { get; } =
         new("basic", Platform.Android, FakeDemoApp.AppId, "test", DataIsolation.SharedReadOnly, [], []) { SetupFlow = "setup-basic.yaml" };
 
+    private static Regex Switch(string automationId) => new($@":id/{Regex.Escape(automationId)}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+
+    /// <summary>The basic profile of the two-profile demo (STEP-07): its switch element is <c>profile.basic</c>.</summary>
+    public static ProfileSettings Basic { get; } = Profile with { SwitchElements = [Switch("profile.basic")] };
+
+    /// <summary>The investor profile (capability <c>investments</c>, <c>setup-investor.yaml</c>, switch element <c>profile.investor</c>).</summary>
+    public static ProfileSettings Investor { get; } =
+        new("investor", Platform.Android, FakeDemoApp.AppId, "test", DataIsolation.SharedReadOnly, [], ["investments"]) { SetupFlow = "setup-investor.yaml", SwitchElements = [Switch("profile.investor")] };
+
+    /// <summary>
+    /// Settings of the two-profile demo (STEP-07): both profiles, MAUI screen hints and no operator rule; the default
+    /// <c>policy.profileSwitch: deny</c> keeps each run inside its profile.
+    /// </summary>
+    public static MapCueSettings ProfilesSettings(Budgets? budgets = null, PolicySettings? policy = null, int? profileVariantMaxDelta = null) =>
+        DemoSettings(budgets) with
+        {
+            Profiles = [Basic, Investor],
+            Policy = policy ?? PolicySettings.Default,
+            Identity = DemoSettings().Identity with { ProfileVariantMaxDelta = profileVariantMaxDelta ?? IdentitySettings.Default.ProfileVariantMaxDelta },
+        };
+
     public static ExplorationHarness Create(FakeAppModel? app = null, MapCueSettings? settings = null) => Open(NewRoot(), app, settings, ownsRoot: true);
 
     /// <summary>A new workspace directory with the setup flow file (deleted by the harness that owns it).</summary>
@@ -79,6 +100,7 @@ internal sealed class ExplorationHarness : IAsyncDisposable
         var root = Path.Combine(Path.GetTempPath(), "mapcue-e2e-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         File.WriteAllText(Path.Combine(root, "setup-basic.yaml"), "appId: com.mapcue.demoapp\n---\n- launchApp\n");
+        File.WriteAllText(Path.Combine(root, "setup-investor.yaml"), "appId: com.mapcue.demoapp\n---\n- launchApp\n");
         return root;
     }
 
@@ -98,9 +120,9 @@ internal sealed class ExplorationHarness : IAsyncDisposable
             settings ?? DemoSettings());
     }
 
-    public ExplorationOptions Options(string? seed = "seed-1") => new(Settings.Profiles[0], RunsDirectory, "sha256:config")
+    public ExplorationOptions Options(string? seed = "seed-1", ProfileSettings? profile = null) => new(profile ?? Settings.Profiles[0], RunsDirectory, "sha256:config")
     {
-        SetupFlowPath = Settings.Profiles[0].SetupFlow is null ? null : SetupFlow,
+        SetupFlowPath = (profile ?? Settings.Profiles[0]).SetupFlow is { } flow ? Path.Combine(Root, flow) : null,
         Seed = seed,
         AppBuildId = "demo-1",
         PollInterval = TimeSpan.FromMilliseconds(400),
@@ -115,6 +137,13 @@ internal sealed class ExplorationHarness : IAsyncDisposable
 
     public Task<ExplorationResult> RunAsync(IExplorationReasoner? reasoner = null, string? seed = "seed-1", MapCueSettings? settings = null, CancellationToken ct = default) =>
         Engine(reasoner, seed, settings).RunAsync(Options(seed), ct);
+
+    /// <summary>Runs one profile of the settings (STEP-07: one run per profile, the same workspace).</summary>
+    public Task<ExplorationResult> RunProfileAsync(string profileId, string? seed = null)
+    {
+        seed ??= "seed-" + profileId;
+        return Engine(null, seed).RunAsync(Options(seed, Settings.Profiles.Single(p => p.ProfileId == profileId)), CancellationToken.None);
+    }
 
     public ExplorationEngine Engine(IExplorationReasoner? reasoner = null, string? seed = "seed-1", MapCueSettings? settings = null, IDeviceAutomation? device = null) =>
         new(

@@ -29,6 +29,8 @@ public sealed record ScreenState(
 /// A state as seen in one context (architecture §6). Element differences are relative to <see cref="ScreenState.BaseElementKeys"/>;
 /// they describe the latest distinct snapshot. <see cref="SnapshotCount"/> counts distinct snapshots, so re-recording identical
 /// content (e.g. a repeated import) changes nothing. Evidence of a variant is the evidence of its context and state (never shared).
+/// <see cref="IdentityTokens"/> are the identity tokens of the latest distinct snapshot in this context (STEP-07): profiles are compared
+/// on them (coverage matrix, equivalence classes, guard hypotheses).
 /// </summary>
 public sealed record ScreenVariant(
     string StateId,
@@ -38,7 +40,10 @@ public sealed record ScreenVariant(
     IReadOnlyList<string> RemovedElementKeys,
     int SnapshotCount,
     DateTimeOffset FirstSeenAt,
-    DateTimeOffset LastSeenAt);
+    DateTimeOffset LastSeenAt)
+{
+    public IReadOnlyList<string> IdentityTokens { get; init; } = [];
+}
 
 /// <summary>
 /// A recorded snapshot (architecture §6). <see cref="RawSha256"/> is the redacted raw observation blob, so the fingerprint can be
@@ -135,6 +140,24 @@ public sealed record ActionCandidate(
 {
     public static string KeyOf(ActionType type, string canonicalSelector, string? paramClass) =>
         ContentHash.Of("mapcue.action/1", type.ToString(), canonicalSelector, paramClass);
+}
+
+/// <summary>
+/// The risk and status of a candidate in one context (STEP-07). The candidate (state, action) is shared by contexts like its state, but
+/// whether it may run depends on the context's policy (another profile's switch elements, data isolation), so a candidate's
+/// <see cref="ActionCandidate.RiskClass"/> and <see cref="ActionCandidate.Status"/> are those of the first context that saw it and the
+/// assessments are the per-context truth. <see cref="Status"/> only moves forward (<see cref="Rank"/>).
+/// </summary>
+public sealed record CandidateAssessment(string StateId, string ActionKey, string ContextId, RiskClass RiskClass, CandidateStatus Status, DateTimeOffset UpdatedAt)
+{
+    /// <summary>Order of statuses: proposed, then skipped or rejected, then scheduled, then explored.</summary>
+    public static int Rank(CandidateStatus status) => status switch
+    {
+        CandidateStatus.Proposed => 0,
+        CandidateStatus.SkippedByPolicy or CandidateStatus.Rejected => 1,
+        CandidateStatus.Scheduled => 2,
+        _ => 3,
+    };
 }
 
 /// <summary>
@@ -253,14 +276,21 @@ public sealed record Checkpoint(
 /// <summary>One step of a reachability recipe, each with the state expected after it.</summary>
 public sealed record RecipeStep(RecipeStepKind Kind, string? ActionKey, string? EdgeId, string? ExpectedStateId, string? Postcondition);
 
-/// <summary>How to reach a state from a clean start in one context (architecture §6, §13). Built from the graph, never from an LLM session.</summary>
+/// <summary>
+/// How to reach a state from a clean start in one context (architecture §6, §13). Built from the graph, never from an LLM session; its
+/// steps use only edges of <see cref="ContextId"/>. <see cref="IdOf"/> gives one recipe per (context, target state).
+/// </summary>
 public sealed record ReachabilityRecipe(
     string RecipeId,
     string ContextId,
     string TargetStateId,
     IReadOnlyList<RecipeStep> Steps,
     DateTimeOffset? VerifiedAt,
-    IReadOnlyList<string> BasedOnEdges);
+    IReadOnlyList<string> BasedOnEdges)
+{
+    public static string IdOf(string contextId, string targetStateId) =>
+        ContentHash.ShortId("rcp", ContentHash.Of("mapcue.recipe/1", contextId, targetStateId));
+}
 
 /// <summary>An event of the transactional outbox (architecture §12). <see cref="Seq"/> is assigned by the store.</summary>
 public sealed record OutboxEvent(long Seq, string EventId, string Type, DateTimeOffset OccurredAt, string? ContextId, string? SubjectId, string PayloadJson);
