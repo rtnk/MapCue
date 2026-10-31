@@ -267,7 +267,8 @@ Run eksploruje dokładnie jeden profil, czyli jeden kontekst. Profile porównuje
   - `ProfilesEndToEndTests` na `FakeDemoProfiles` (oba profile demo app): wspólne stany; osobne konteksty, krawędzie, zadania, obserwacje, dowody i oceny kandydatów; guard `tab.investments` przechodzi z `inferred` do `observed` dopiero po obu profilach; odmowa i `allow`; recipes; determinizm; brak duplikatu Accounts dzięki regule wariantu;
   - CLI z YAML;
   - migracja `0006`;
-  - nagrania Home (R-04).
+  - nagrania Home (R-04);
+  - normalizacja v3 (`RecyclerView` 2/3 wiersze, przewijany i nie).
 
 ## 6. Model danych (ScreenGraph)
 
@@ -344,7 +345,7 @@ Fingerprint **nie zależy od hasha screenshotu** ani od pikseli. Powstaje z zred
 5. Dwa kandydaty w odległości < ε oznaczają **Ambiguous**: zapis obu hipotez, stan `provisional`, bez cichego scalania. Scalenie robi operator (`mapcue graph merge`, P1).
 6. Snapshot niestabilny (odcisk zmienia się w oknie stabilizacji) albo ze wskaźnikiem ładowania oznacza **Transient**: ponowna obserwacja do `uiSettleTimeout`, potem stan `loading` z flagą.
 
-**STEP-07 (profile, R-04):** przy `screenHints` i kontekście snapshotu działa dodatkowo reguła wariantu profilu (§5.7). Warunki: różnica ≤ `identity.profileVariantMaxDelta` tokenów, ten sam znacznik i dyskryminatory, a znany stan nie był jeszcze widziany w tym kontekście. Wtedy snapshot jest wariantem, a nie nowym stanem. Powód: Accounts `investor` ma z Accounts `basic` Jaccard 5/6 ≈ 0,83 < `τ_state`.
+**STEP-07 (profile, R-04):** przy `screenHints` i kontekście snapshotu działa dodatkowo reguła wariantu profilu (§5.7). Warunki: różnica ≤ `identity.profileVariantMaxDelta` tokenów, ten sam znacznik i dyskryminatory, a znany stan nie był jeszcze widziany w tym kontekście. Wtedy snapshot jest wariantem, a nie nowym stanem. Fingerprint w wersji 3 traktuje widżet listy (rola `list`, np. `RecyclerView`) jako listę także wtedy, gdy się nie przewija, a kontener wykrytej listy nie jest tokenem interaktywnym. Na emulatorze 2 i 3 rachunki dawały wcześniej różne stany Accounts (ADR-0006, STEP-07).
 
 **STEP-05 (kalibracja na demo app, R-04):** fingerprint w wersji 2 pomija kontenery frameworka (`android:id/content` i kontenery MAUI `action_bar_root`, `navigation_layout`, `navigationlayout_content`, `nav_host`) jako kotwice tożsamości. Krok 3 działa przez `identity.screenHints` (wzorce `resource-id` znacznika ekranu, dla MAUI `AutomationId` tytułu strony). Szczegóły: ADR-0006.
 

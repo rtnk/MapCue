@@ -28,15 +28,22 @@
   - `mapcue.demo.yaml` nie potrzebuje już ręcznej reguły `other-profile`.
   - Uzasadnienie: jeden run = jeden kontekst. Zmiana profilu w środku runu zapisuje ekrany innego profilu jako dowody tego kontekstu. Test z `allow` pokazuje to mieszanie i rozbieżną nawigację.
 - **Warianty i R-04:**
-  - Margines Home `investor` (Jaccard 0,857 przy `τ_state` 0,85) okazał się realnym problemem na zakładce Accounts: 5/6 ≈ 0,83 < 0,85, więc bez nowej reguły byłby duplikatem stanu.
-  - Reguła wariantu profilu w `ScreenIdentityResolver` (ADR-0006, STEP-07): `KnownStateVariant` z `ProfileVariantDelta`, gdy:
+  - Margines Home `investor` (Jaccard 0,857 przy `τ_state` 0,85) sprawdzony na emulatorze. Pierwsze dwa runy `android-explore` (41204402837, 41205728559) dały FAIL: Accounts `investor` był duplikatem stanu.
+  - Diagnostyka różnicy tokenów (dodana do `compare-expected.py`) pokazała przyczynę w danych, nie w profilu. `RecyclerView` rachunków się nie przewija, a fingerprint v2 uznawał kontener nieprzewijany za listę dopiero od 3 wierszy. 2 rachunki dawały więc 2 tokeny wierszy, a 3 rachunki token listy, czyli różnicę 4 tokenów.
+  - **Fingerprint v3** (`SnapshotNormalizer`):
+    - widżet listy (rola `list`) jest listą bez względu na przewijanie (≥ 2 powtórzenia);
+    - kontener wykrytej listy jest kotwicą, nie tokenem `i:`;
+    - przepięte hashe nagrań Settings i launchera;
+    - po v3 Home i Accounts `investor` różnią się tylko `tab.investments` (6/7).
+  - **Reguła wariantu profilu** w `ScreenIdentityResolver` (ADR-0006) jako zabezpieczenie marginesu: `KnownStateVariant` z `ProfileVariantDelta`, gdy:
     - jest ten sam znacznik `screenHints`;
     - są te same dyskryminatory;
     - różnica ≤ `identity.profileVariantMaxDelta` (domyślnie 2) tokenów;
     - znany stan nie ma jeszcze wariantu w kontekście snapshotu.
-  - W jednym kontekście inny zbiór elementów nadal daje inny stan. Bez `screenHints` reguła nie działa.
-  - Remis dwóch stanów daje `Ambiguous`.
+
+    W jednym kontekście inny zbiór elementów nadal daje inny stan. Bez `screenHints` reguła nie działa. Remis daje `Ambiguous`.
   - `GraphCommitter.KnownStatesAsync` jest wspólny dla commitu i read-only rozpoznania silnika.
+  - `FakeDemoProfiles` ma `RecyclerView` jak na emulatorze; z v2 test E2E odtwarzał awarię z CI.
 - **`ScreenVariant.IdentityTokens`:** tokeny ostatniego snapshotu w kontekście (migracja `0006`). Na nich opiera się porównanie profili.
 - **Ocena kandydata per kontekst (`candidate_assessments`, migracja `0006`):**
   - Błąd znaleziony w etapie: `action_candidates` mają klucz `(stateId, actionKey)` bez kontekstu, więc ryzyko i status z pierwszego profilu zostawały dla drugiego. Wyrocznia na FakeDevice zgłaszała „investor: action executed with risk AccountChange: tap profile.investor”.
@@ -67,6 +74,7 @@
   - testy: `tests/MapCue.EndToEnd.Tests/ProfilesEndToEndTests.cs`, `tests/MapCue.Application.Tests/Graph/ProfileVariantResolverTests.cs`, `tests/MapCue.Application.Tests/Profiles/ProfileConfigTests.cs`, `tests/MapCue.Infrastructure.Tests/Graph/ProfileStoreTests.cs`;
   - `FakeDemoProfiles` w `tests/MapCue.Testing/FakeDemoApp.cs`.
 - **Zmienione:**
+  - `SnapshotNormalizer` (fingerprint v3), testy `RecordedSnapshotFingerprintTests` (przepięte hashe) i `SnapshotNormalizerTests`;
   - `MapCueSettings` (`ProfileSettings.{ScenarioId,Locale,SwitchElements}`, `PolicySettings.ProfileSwitch`, `IdentitySettings.ProfileVariantMaxDelta`), `MapCueConfigDocument`, `MapCueConfigValidator`;
   - `ScreenIdentityResolver` (`Resolve(…, contextId)`, `Delta`, `KnownState.ContextIds`, `IdentityResolution.ProfileVariantDelta`);
   - `GraphCommitter`, `AgentInterpreter`, `ExplorationEngine` (reguły zmiany profilu, kontekst z profilu, ryzyko próby, recipes), `ExplorationOptions`;
@@ -77,6 +85,7 @@
   - demo: `mapcue.demo.yaml`, `run-explore.sh`, `compare-expected.py`, `expected-graph.md`, `.github/workflows/demo-app.yml` (komentarz);
   - dokumenty: architektura §5.7, §6, §7.3; ADR-0006; ROADMAP; README; `docs/examples/mapcue.example.yaml`; handoff STEP-06.
 - **Zmiany łamiące** (bez zewnętrznych konsumentów):
+  - `FingerprintVersion` = 3: stany z wersji 2 nie są porównywane z nowymi, więc istniejący workspace zaczyna nowy graf (surowe snapshoty zostają);
   - `ExplorationOptions.Locale`/`ScenarioId` są nullable;
   - nowe metody portu `IGraphRepository`;
   - `compare-expected.py` raportuje per kontekst;
@@ -90,7 +99,7 @@
 | Gate: PR #9 zmergowany, `main` aktualny, CI i Demo app zielone | GitHub API: PR #9 merged; `main` = `e07651b`; runy 40918179871 (CI), 40918179698 (Demo app) `success` | PASS | — |
 | Baseline przed zmianami | `dotnet test MapCue.sln -c Release --no-build` na `e07651b` / lokalnie | PASS (702 pass, 1 skip) | — |
 | Build Release (0 ostrzeżeń) | `dotnet build MapCue.sln -c Release` / lokalnie SDK 10.0.114 | PASS | — |
-| Testy (11 projektów testowych) | `dotnet test MapCue.sln -c Release --no-build` / lokalnie | PASS (739 pass, 1 skip: smoke CLI agenta bez zmiennej) | — |
+| Testy (11 projektów testowych) | `dotnet test MapCue.sln -c Release --no-build` / lokalnie | PASS (740 pass, 1 skip: smoke CLI agenta bez zmiennej) | — |
 | Format | `dotnet format MapCue.sln --verify-no-changes` | PASS | — |
 | Test architektury (17) | `MapCue.Architecture.Tests` | PASS | — |
 | Dwa profile w jednym workspace (`FakeDemoProfiles`): 7 wspólnych stanów, Investments tylko `investor` (run investor: 1 nowy stan, 1 nowy ekran), jeden stan na znacznik ekranu, krawędzie `basic` niezmienione po runie `investor`, `tab.investments` tylko w kontekście `investor`, obserwacje, snapshoty, dowody i zadania każdy w swoim kontekście | `ProfilesEndToEndTests.Two_profiles_share_states_but_never_edges_tasks_or_evidence` | PASS | — |
@@ -98,7 +107,8 @@
 | Macierz pokrycia, klasy równoważności (Home i Accounts: 2 klasy, What's new i Details: 1), recipes per kontekst (7 basic, 8 investor, tylko krawędzie własnego kontekstu, start `SetupFlow`) | `Coverage_matrix_equivalence_classes_and_recipes_are_per_context` | PASS | — |
 | Odmowa zmiany profilu (domyślnie): `profile.investor` nie wykonany w `basic`; z `allow` wykonany, a graf `basic` miesza profile (`AllRemainingBlocked` przez rozbieżną nawigację) | `A_run_refuses_…`, `With_profile_switch_allowed_…` | PASS | — |
 | Ocena kandydata per kontekst: `profile.investor` = `accountChange`/`SkippedByPolicy` w `basic`, `navigational`/`Explored` w `investor` | `A_shared_candidate_has_its_risk_and_status_per_context`, `ProfileStoreTests` | PASS | — |
-| R-04: bez reguły (`profileVariantMaxDelta: 0`) Accounts `investor` jest drugim stanem, a Home pozostaje jednym (0,857); nagrania Home: różnica 1 token, reguła rozpoznaje wariant także przy `τ_state` = 0,9 | `Without_the_profile_variant_rule_…`, `DemoAppRecordingCalibrationTests.The_investor_home_is_also_a_profile_variant_…` | PASS | — |
+| R-04: v3, czyli `RecyclerView` z 2 i 3 wierszami (przewijany i nie) daje tę samą tożsamość, a zwykły kontener z 2 przyciskami nie jest listą; bez reguły wariantu (`profileVariantMaxDelta: 0`) Home i Accounts scalają się tylko przez Jaccard 6/7; nagrania Home: różnica 1 token, reguła rozpoznaje wariant także przy `τ_state` = 0,9 | `SnapshotNormalizerTests.A_list_widget_…`, `Without_the_profile_variant_rule_…`, `DemoAppRecordingCalibrationTests.The_investor_home_is_also_a_profile_variant_…` | PASS | — |
+| Demo na emulatorze, fingerprint v2 (dwa profile) | `demo-app.yml` job `android-explore`, runy 41204402837 i 41205728559 (head `2b572d7`, `f7a6b29`) | FAIL: kontrola 5, Accounts `investor` duplikatem (różnica tokenów: 2 wiersze vs token listy + `tab.investments`). Pozostałe kontrole PASS: `basic` 25/25 i `investor` 33/33 przejść, guard `tab.investments` `observed`, brak zmiany profilu, oceny per kontekst | artefakt `demo-android-explore` |
 | Determinizm: dwa workspace'y z tą samą kolejnością i ziarnami dają identyczny graf i raport profili | `Two_workspaces_explored_in_the_same_order_give_the_same_graph` | PASS | — |
 | Resolver (różnica w innym/tym samym kontekście, limit, znacznik, dyskryminatory, brak hintów, remis), konfiguracja (domyślne, odczyt, 6 błędów), reguły zmiany profilu, dopasowanie nazw | `ProfileVariantResolverTests` (6), `ProfileConfigTests` (13) | PASS | — |
 | YAML → `explore --profile basic`, `explore --profile investor` → `status --profiles` (guard `observed`, `notObserved`), konfiguracja demo i przykład z dwoma profilami | `ExploreCommandTests.Two_profiles_from_yaml_…`, `ConfigLoaderTests` | PASS | — |

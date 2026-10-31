@@ -131,12 +131,17 @@ public static class FakeDemoProfiles
             .. investor ? new FakeElement[] { new(Id("tab.investments"), "Investments", S("investments")) { Navigation = FakeNavigation.Replace } } : [],
             new(Id("tab.settings"), "Settings", S("settings")) { Navigation = FakeNavigation.Replace },
         ];
-        FakeElement Row(string text) => new(string.Empty, text, S("details"));
+        // The accounts list is a RecyclerView (MAUI CollectionView, accounts.list) whose rows fit, so it is not scrollable: two rows (basic)
+        // and three (investor) in a container that does not scroll (seen on the emulator, STEP-07: fingerprint version 2 made only the
+        // three rows a list, so the investor Accounts tab was another state).
+        FakeElement Row(string text) => new(string.Empty, text, S("details")) { Depth = 1 };
         var rows = new List<FakeElement> { Row("Everyday account · PLN 1,250.00"), Row("Savings account · PLN 8,400.50") };
         if (investor)
         {
             rows.Add(Row("Brokerage account · PLN 52,310.75"));
         }
+
+        rows.Insert(0, new(Id("accounts.list"), string.Empty) { Clickable = false, ClassName = "androidx.recyclerview.widget.RecyclerView" });
 
         yield return new(S("loading"), [.. Maui(), Title("screen.loading", "Loading"), new(Id("loading.indicator"), string.Empty) { Clickable = false, ClassName = "android.widget.ProgressBar" }]) { AdvanceAfterObservations = 2, AdvanceTo = S("home") };
         yield return new(S("home"), [.. Maui(), Title("screen.home", "Home"), new(string.Empty, $"Profile: {p}") { Clickable = false, ClassName = "android.widget.TextView" }, new(Id("home.accounts"), "View accounts", S("accounts")) { Navigation = FakeNavigation.Replace }, new(Id("home.whatsnew"), "What's new", S("whatsnew")), .. Tabs()]);

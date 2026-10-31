@@ -236,25 +236,45 @@ public class ProfilesEndToEndTests
         var result = await h.RunProfileAsync("basic");
 
         // What the default prevents: the investor profile is chosen inside the basic context, so the basic graph gets an edge into the
-        // investor app and later navigation over it diverges (the investor Accounts tab is not a state of this context).
+        // investor app and investor screens become evidence of the basic context (profiles mixed in one context).
         Assert.Contains(h.Device.ExecutedActions, a => a.TargetResourceId == FakeDemoApp.Id("profile.investor"));
-        var (candidates, edges) = await h.ReadAsync(async uow => (await uow.Graph.ListCandidatesAsync(null, CancellationToken.None), await uow.Graph.ListEdgesAsync(CancellationToken.None)));
+        var (candidates, edges, snapshots) = await h.ReadAsync(async uow => (await uow.Graph.ListCandidatesAsync(null, CancellationToken.None), await uow.Graph.ListEdgesAsync(CancellationToken.None), await uow.Graph.ListSnapshotsAsync(CancellationToken.None)));
         var switchKeys = candidates.Where(c => c.CanonicalSelector.Contains("profile.investor", StringComparison.Ordinal)).Select(c => c.ActionKey).ToHashSet(StringComparer.Ordinal);
         Assert.Contains(edges, e => switchKeys.Contains(e.ActionKey) && e.Status == EdgeStatus.Observed);
-        Assert.Equal(RunFinishReason.AllRemainingBlocked, result.Reason);
+        var basicCtx = (await ContextOfAsync(h, "basic")).ContextId;
+        var mixed = new List<string>();
+        foreach (var snapshot in snapshots.Where(s => s.ContextId == basicCtx))
+        {
+            var text = await h.Artifacts.ReadTextAsync(snapshot.NormalizedSha256, CancellationToken.None);
+            if (text?.Contains("tab.investments", StringComparison.Ordinal) == true)
+            {
+                mixed.Add(snapshot.SnapshotId);
+            }
+        }
+
+        Assert.NotEmpty(mixed);
+        Assert.NotEqual(RunFinishReason.Failed, result.Reason);
     }
 
     [Fact]
-    public async Task Without_the_profile_variant_rule_the_investor_accounts_tab_is_a_duplicate_state()
+    public async Task Without_the_profile_variant_rule_the_tab_screens_merge_only_by_a_small_similarity_margin()
     {
-        // R-04: Home investor is a variant by similarity (6/7 ≈ 0.857 ≥ τ_state), Accounts investor is not (5/6 ≈ 0.83 < 0.85).
+        // R-04: with fingerprint version 3 the Investments tab is the only difference of Home and Accounts (Jaccard 6/7 ≈ 0.857, 0.007
+        // above τ_state); with version 2 Accounts also differed in its list rows (emulator, STEP-07) and was a duplicate state. The profile
+        // variant rule does not depend on that margin (ProfileVariantResolverTests, DemoAppRecordingCalibrationTests).
         await using var h = Create(ExplorationHarness.ProfilesSettings(profileVariantMaxDelta: 0));
         await h.RunProfileAsync("basic");
         await h.RunProfileAsync("investor");
 
         var markers = await MarkersAsync(h);
-        Assert.Single(markers, kv => kv.Value == "screen.home");
-        Assert.Equal(2, markers.Count(kv => kv.Value == "screen.accounts"));
+        var investorCtx = (await ContextOfAsync(h, "investor")).ContextId;
+        var (states, variants) = await h.ReadAsync(async uow => (await uow.Graph.ListStatesAsync(CancellationToken.None), await uow.Graph.ListVariantsAsync(CancellationToken.None)));
+        foreach (var marker in new[] { "screen.home", "screen.accounts" })
+        {
+            var state = Assert.Single(states, s => markers[s.StateId] == marker);
+            var investor = variants.Single(v => v.StateId == state.StateId && v.ContextId == investorCtx);
+            Assert.Equal(6.0 / 7.0, MapCue.Application.Graph.ScreenIdentityResolver.Jaccard(state.IdentityTokens, investor.IdentityTokens), 6);
+        }
     }
 
     [Fact]

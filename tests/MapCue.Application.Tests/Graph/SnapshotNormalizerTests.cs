@@ -34,6 +34,31 @@ public class SnapshotNormalizerTests
     }
 
     [Fact]
+    public void A_list_widget_that_does_not_scroll_is_a_list_and_its_scrollability_never_changes_identity()
+    {
+        // STEP-07 (fingerprint version 3): the demo app's accounts RecyclerView with 2 rows (basic) and 3 rows (investor), whether the
+        // rows fit (not scrollable) or not. Version 2 made only 3 rows in a non-scrollable container a list.
+        static MapCue.Testing.UiNode Accounts(int rows, bool scrollable) =>
+            Container(
+                "android.widget.FrameLayout",
+                Text("Accounts", "app:id/screen.accounts"),
+                Node("androidx.recyclerview.widget.RecyclerView", "app:id/accounts.list", scrollable: scrollable, children: [.. Enumerable.Range(0, rows).Select(i => Button(string.Empty, $"Account {i} · PLN 1,250.00"))]),
+                Button("app:id/tab.home", "Home"));
+
+        var two = Normalize(Accounts(2, scrollable: false));
+        Assert.Equal(two.IdentityHash, Normalize(Accounts(3, scrollable: false)).IdentityHash);
+        Assert.Equal(two.IdentityHash, Normalize(Accounts(3, scrollable: true)).IdentityHash);
+        Assert.Equal(two.IdentityHash, Normalize(Accounts(2, scrollable: true)).IdentityHash);
+        Assert.Contains(two.IdentityTokens, t => t.StartsWith("l:id:app:id/accounts.list|", StringComparison.Ordinal) && t.EndsWith("|many", StringComparison.Ordinal));
+        Assert.Contains("a:id:app:id/accounts.list", two.IdentityTokens);
+        Assert.DoesNotContain(two.IdentityTokens, t => t.Contains("Account", StringComparison.OrdinalIgnoreCase) && t.StartsWith("i:", StringComparison.Ordinal));
+
+        // A plain container still needs three repeated children; two similar buttons stay two elements.
+        var pair = Normalize(Container("android.widget.LinearLayout", Button(string.Empty, "Yes"), Button(string.Empty, "No")));
+        Assert.Empty(pair.Lists);
+    }
+
+    [Fact]
     public void Status_bar_content_never_changes_identity()
     {
         Assert.Equal(Normalize(StatusBar("10:18"), Home()).IdentityHash, Normalize(StatusBar("23:59"), Home()).IdentityHash);

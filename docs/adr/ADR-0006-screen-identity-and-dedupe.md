@@ -46,15 +46,22 @@ Kalibracja na nagraniach `samples/MapCue.DemoApp/recordings/` (Home po `setup-ba
 
 ## Implementacja w STEP-07 (profile i warianty)
 
-- **Margines Home `investor` (R-04):** Home `investor` ma z Home `basic` Jaccard 6/7 ≈ 0,857, czyli 0,007 nad `τ_state`, więc to wariant przez podobieństwo. Ten sam token (`tab.investments`) na zakładce Accounts daje 5/6 ≈ 0,83 < 0,85. Bez dodatkowej reguły Accounts `investor` byłby drugim stanem ekranu Accounts (test `Without_the_profile_variant_rule_…`). Settings (7/8 ≈ 0,875) jest blisko progu z tego samego powodu.
-- **Decyzja: reguła wariantu profilu.** Snapshot jest wariantem znanego stanu (`KnownStateVariant`, `profileVariantDelta`), gdy spełnia wszystkie warunki:
+- **Margines Home `investor` (R-04):** Home `investor` ma z Home `basic` Jaccard 6/7 ≈ 0,857, czyli 0,007 nad `τ_state`, więc to wariant przez podobieństwo. Na emulatorze (runy 41204402837 i 41205728559, diagnostyka różnicy tokenów w `compare-expected.py`) Accounts `investor` był jednak osobnym stanem. Powód: `RecyclerView` rachunków (`accounts.list`) nie jest przewijany, a wersja 2 uznawała kontener nieprzewijany za listę dopiero od 3 powtórzonych dzieci. 2 rachunki (`basic`) dawały więc 2 tokeny `i:label:button:… · ‹amount›`, a 3 (`investor`) token `l:id:…accounts.list|…|many`. Razem z `tab.investments` różnica wynosiła 4 tokeny (Jaccard 4/10).
+- **Decyzja: fingerprint w wersji 3.**
+  - Widżet listy (rola `list`: `RecyclerView`, `ListView`, `CollectionView`, `ScrollView`…) ma reguły kontenera przewijanego niezależnie od flagi `scrollable`: ≥ 2 powtórzone dzieci albo brak dzieci (`countBucket` 0), a wszystkie dzieci są wierszami.
+  - Kontener wykrytej listy nie jest tokenem interaktywnym (`i:`), tylko kotwicą z `resource-id`, bo jego przewijalność zależy od liczby wierszy na ekranie.
+  - Zwykły kontener nadal potrzebuje 3 powtórzeń, więc dwa podobne przyciski nie są listą.
+  - Zmieniły się przypięte hashe nagrań Settings i launchera (kontenery list).
+  - Stany zapisane w wersji 2 nie są porównywane z nowymi, więc istniejący workspace zaczyna nowy graf. Surowe snapshoty zostają do przeliczenia (decyzja 4).
+- **Decyzja: reguła wariantu profilu** (zabezpieczenie marginesu, niezależne od wersji 3). Snapshot jest wariantem znanego stanu (`KnownStateVariant`, `profileVariantDelta`), gdy spełnia wszystkie warunki:
   - z podobieństwa wyszedłby nowy stan ekranu;
   - ma ten sam znacznik `screenHints` i te same dyskryminatory `stateKind`;
   - różni się o ≤ `identity.profileVariantMaxDelta` tokenów (multizbiór, domyślnie 2);
   - znany stan nie ma jeszcze wariantu w kontekście snapshotu.
 
-  Uzasadnienie: profil pokazuje albo ukrywa kilka elementów na wspólnym ekranie, a w jednym kontekście inny zbiór elementów to nadal inny stan. Reguła nie zależy od kolejności profili (subset i superset liczą się tak samo) i nie zmienia hashy, więc nie wymaga nowej `fingerprintVersion`. Zapisuje alias jak każdy `KnownStateVariant`. Bez `screenHints` nie działa (brak znacznika ekranu = brak bezpiecznej kotwicy). Odrzucone alternatywy:
+  Uzasadnienie: profil pokazuje albo ukrywa kilka elementów na wspólnym ekranie (przy 2 elementach profilu Jaccard Home spadłby do 6/8 = 0,75), a w jednym kontekście inny zbiór elementów to nadal inny stan. Reguła nie zależy od kolejności profili (subset i superset liczą się tak samo) i nie zmienia hashy, więc nie wymaga nowej `fingerprintVersion`. Zapisuje alias jak każdy `KnownStateVariant`. Bez `screenHints` nie działa (brak znacznika ekranu = brak bezpiecznej kotwicy). Odrzucone alternatywy:
   - obniżenie `τ_state` (scalałoby stany w jednym kontekście);
+  - większy limit reguły zamiast wersji 3 (różnica 4 tokenów z danych scalałaby zbyt wiele);
   - wyłączenie tokenów capability z tożsamości (wymagałoby listy elementów profilu i ukrywałoby różnice).
 - **Ryzyko i status kandydata są per kontekst** (`candidate_assessments`). Kandydat `(stateId, actionKey)` pozostaje wspólny jak stan. Pierwszy zapis kandydata nie decyduje już o ryzyku w innym kontekście: przycisk `profile.investor` jest `accountChange` w `basic` i `navigational` w `investor`.
-- **Konsekwencja:** na `FakeDemoProfiles` (i w wyroczni `compare-expected.py`) jeden stan odpowiada jednemu znacznikowi ekranu, a Investments jest jedynym stanem tylko w `investor`. Dowody, snapshoty, obserwacje i krawędzie są zawsze w swoim kontekście.
+- **Konsekwencja:** na `FakeDemoProfiles` (z `RecyclerView` jak na emulatorze) (i w wyroczni `compare-expected.py`) jeden stan odpowiada jednemu znacznikowi ekranu, a Investments jest jedynym stanem tylko w `investor`. Dowody, snapshoty, obserwacje i krawędzie są zawsze w swoim kontekście.
