@@ -229,6 +229,46 @@ Fazy próby (journal, zapis przed efektem): `Created → RestoreStarted → Rest
 - **Zakończenie:** `Exhausted` tylko wtedy, gdy w kontekście nie ma zadań `Pending`, `Blocked` ani zadań w lease innego runu. W pozostałych przypadkach `AllRemainingBlocked` z liczbami w `detail`.
 - **Testy:** proces potomny (`tests/MapCue.EndToEnd.CrashHost`) zabija się (`SIGKILL`) po każdej fazie próby. Kolejny run w tym samym workspace kończy eksplorację bez utraty postępu i bez podwójnych commitów (jedna obserwacja na próbę, `observationCount` = liczba obserwacji).
 
+### 5.7 Implementacja w STEP-07 (profile i warianty)
+
+Run eksploruje dokładnie jeden profil, czyli jeden kontekst. Profile porównuje się w jednym workspace przez kolejne runy (`mapcue explore --profile basic`, potem `--profile investor`). Migracja `0006`.
+
+- **`ExplorationProfile` (YAML, `profiles[]`):**
+  - `profileId`, `platform`, `appId`, `environment: test` (wymagane), `dataIsolation`, `setupFlow`, `inputs` (tylko `secret://env/NAME` albo `generated:<kind>`), `capabilities`;
+  - nowe: `scenario` (domyślnie `default`), `locale` (domyślnie `und`) i `switchElements` (wzorce `resource-id` elementów, które przełączają aplikację na ten profil).
+  - Kontekst (`ExplorationContext`, §6) powstaje z profilu: `H(profileId, platform, appId, appBuildId, locale, scenarioId, sorted(capabilities))`. `ExplorationOptions.Locale`/`ScenarioId` tylko nadpisują wartości profilu.
+- **Zmiana profilu w runie (decyzja STEP-07):** domyślnie odmowa (`policy.profileSwitch: deny`). `switchElements` innych profili są w kontekście runu regułami operatora o ryzyku `accountChange` (`ProfileSwitchRules`, przed `policy.riskRules`; reguły tylko podnoszą ryzyko). Dla danych `shared-readonly` taka akcja dostaje `SkippedByPolicy`, a dla `disposable` `RequiresApproval`. W żadnym przypadku nie jest wykonywana po cichu. `allow` klasyfikuje te elementy zwyczajnie, a test pokazuje, że wtedy graf kontekstu miesza profile. MapCue nie zgaduje elementów wyboru profilu: bez `switchElements` ochrony nie ma.
+- **Warianty (`ScreenVariant`):** stan jest wspólny dla kontekstów, a wariant `(stateId, contextId)` zapisuje teraz także `identityTokens` ostatniego snapshotu w swoim kontekście.
+  - **Reguła wariantu profilu w resolverze:** przy `screenHints` snapshot dostaje `KnownStateVariant` (`profileVariantDelta`), gdy spełnia wszystkie warunki:
+    - wychodzi `NewStateOfScreen`;
+    - różni się od znanego stanu o ≤ `identity.profileVariantMaxDelta` (domyślnie 2) tokenów tożsamości;
+    - ma ten sam znacznik ekranu i te same dyskryminatory;
+    - znany stan nie ma jeszcze wariantu w kontekście snapshotu.
+  - W obrębie jednego kontekstu inny zbiór elementów nadal oznacza inny stan.
+  - Dwa takie stany w tej samej odległości dają `Ambiguous`.
+  - Read-only rozpoznanie silnika i commit używają tej samej listy (`GraphCommitter.KnownStatesAsync`).
+- **Ocena kandydata per kontekst (`candidate_assessments`):** kandydat `(stateId, actionKey)` jest wspólny jak stan, ale ryzyko i status zależą od polityki kontekstu. Przykład: `profile.investor` to `accountChange` w `basic` i `navigational` w `investor`. Interpreter, planowanie i commit zapisują ocenę `(stateId, actionKey, contextId)`, której status tylko rośnie. `ActionCandidate.RiskClass`/`Status` to wartości pierwszego kontekstu. Próba używa ryzyka zwalidowanej akcji swojego zadania.
+- **`ReachabilityRecipe` per kontekst:** przy zakończeniu runu powstaje recipe `rcp_… = H(contextId, targetStateId)` dla każdego stanu osiągalnego ze stanu startowego po krawędziach odtwarzalnych tego kontekstu. Recipe to `setupFlow` (albo `launchApp`) i najkrótsza ścieżka, każdy krok z oczekiwanym stanem. Bezpieczny replay z wykrywaniem rozbieżności i `verifiedAt` należą do STEP-09.
+- **Porównanie profili (`ProfileAnalysis`, `mapcue status --profiles`):** liczone deterministycznie, tylko z bazy. Jest ograniczone do:
+  - kontekstów z tym samym `appId`, platformą, buildem i locale (grupa porównania), żeby zmiana buildu albo języka nie wyglądała jak różnica profilu;
+  - stanów widzianych w danym kontekście;
+  - tokenów interaktywnych (`i:`).
+
+  Wynik obejmuje:
+  - **macierz pokrycia:** stan × kontekst, `observed` / `notObserved`, z liczbą snapshotów, krawędzi wychodzących i recipe;
+  - **klasy równoważności:** konteksty, które widzą stan z tymi samymi elementami interaktywnymi;
+  - **hipotezy guardów:**
+    - `inferred`: nazwa elementu (segment po `/` w `resource-id`) pasuje do capability każdego kontekstu, który go pokazuje, a braku elementu nikt jeszcze nie widział;
+    - `observed`: ten sam stan widziano bez elementu w kontekście bez tej capability;
+    - `refuted`: obserwacja przeczy dopasowaniu nazwy.
+
+    Różnica bez dopasowania nazwy jest `observed` z capability, która ją wyjaśnia, albo bez niej. Dowody (`evidenceIds`) to snapshoty porównanych stanów, każdy we własnym kontekście.
+- **Testy:**
+  - `ProfilesEndToEndTests` na `FakeDemoProfiles` (oba profile demo app): wspólne stany; osobne konteksty, krawędzie, zadania, obserwacje, dowody i oceny kandydatów; guard `tab.investments` przechodzi z `inferred` do `observed` dopiero po obu profilach; odmowa i `allow`; recipes; determinizm; brak duplikatu Accounts dzięki regule wariantu;
+  - CLI z YAML;
+  - migracja `0006`;
+  - nagrania Home (R-04).
+
 ## 6. Model danych (ScreenGraph)
 
 ```mermaid
@@ -261,10 +301,11 @@ erDiagram
 | `ExplorationContext` | `contextId`, `signature = H(profileId, platform, appBuildId, locale, scenarioId, sorted(capabilities))` | jeden run może mieć wiele kontekstów, ale każda próba ma dokładnie jeden |
 | `LogicalScreen` | `screenId`, `screenKey`, `displayName`, `identityStatus: provisional\|confirmed`, `identitySource: hint\|structure\|operator` | `displayName` może pochodzić od agenta, ale tożsamość nadaje resolver |
 | `ScreenState` | `stateId`, `screenId`, `stateKind` (`default, loading, empty, error, modal, menu, form, keyboard, unknown`), `identityHash`, `fingerprintVersion` | bez kontekstu: wspólny dla profili |
-| `ScreenVariant` | `(stateId, contextId)`, `elementSetHash`, różnica elementów względem bazy, `evidenceIds` | dane i dowody wariantu są zawsze w kontekście |
+| `ScreenVariant` | `(stateId, contextId)`, `elementSetHash`, różnica elementów względem bazy, `identityTokens` (STEP-07), `evidenceIds` | dane i dowody wariantu są zawsze w kontekście |
 | `UiSnapshot` | `snapshotId`, `attemptId`, `fidelity: fast\|full`, `rawRef`, `normalizedRef`, `identityHash`, `layoutHash`, `screenshotRef?`, `redactionVersion` | surowy snapshot zostaje (zredagowany), więc fingerprint można przeliczyć po zmianie wersji |
 | `UiElement` (znormalizowany) | `elementRef` (w snapshocie, np. `e17`), `elementKey` (stabilny w ekranie), `role`, `label`, `text`, `resourceId`, `flags`, `boundsBucket`, `listTemplate?` | role na iOS: `inferred` (G-03) |
-| `ActionCandidate` | `actionKey = H(actionType, canonicalSelector, paramClass)`, `source: agent\|rule`, `riskClass`, `status` | `paramClass` to np. `input:profile.username`, nigdy wartość |
+| `ActionCandidate` | `actionKey = H(actionType, canonicalSelector, paramClass)`, `source: agent\|rule`, `riskClass`, `status` | `paramClass` to np. `input:profile.username`, nigdy wartość. Ryzyko i status per kontekst: `CandidateAssessment` (STEP-07) |
+| `CandidateAssessment` | `(stateId, actionKey, contextId)`, `riskClass`, `status` (tylko rośnie) | STEP-07: polityka kontekstu, np. zmiana profilu |
 | `ScreenEdge` | `(fromStateId, actionKey, contextId) → toStateId`, `status`, `observationCount`, `nondeterministic`, `lastVerifiedAt` | wiele różnych celów oznacza flagę `nondeterministic` i brak eksportu |
 | `ActionObservation` | `attemptId` (UNIQUE), `before`, `after`, `outcome`, `durationMs`, `evidenceIds` | jedna obserwacja na próbę, co daje idempotencję commitu |
 | `FrontierTask` | `taskKey` (UNIQUE), `type`, `status`, `priority`, `depth`, `contextId`, `fromStateId`, `actionKey`, `recipeId`, `leaseOwner`, `leaseExpiresAt`, `blockedReason` | |
@@ -302,6 +343,8 @@ Fingerprint **nie zależy od hasha screenshotu** ani od pikseli. Powstaje z zred
 4. Brak dopasowania oznacza **nowy LogicalScreen** (`provisional`).
 5. Dwa kandydaty w odległości < ε oznaczają **Ambiguous**: zapis obu hipotez, stan `provisional`, bez cichego scalania. Scalenie robi operator (`mapcue graph merge`, P1).
 6. Snapshot niestabilny (odcisk zmienia się w oknie stabilizacji) albo ze wskaźnikiem ładowania oznacza **Transient**: ponowna obserwacja do `uiSettleTimeout`, potem stan `loading` z flagą.
+
+**STEP-07 (profile, R-04):** przy `screenHints` i kontekście snapshotu działa dodatkowo reguła wariantu profilu (§5.7). Warunki: różnica ≤ `identity.profileVariantMaxDelta` tokenów, ten sam znacznik i dyskryminatory, a znany stan nie był jeszcze widziany w tym kontekście. Wtedy snapshot jest wariantem, a nie nowym stanem. Powód: Accounts `investor` ma z Accounts `basic` Jaccard 5/6 ≈ 0,83 < `τ_state`.
 
 **STEP-05 (kalibracja na demo app, R-04):** fingerprint w wersji 2 pomija kontenery frameworka (`android:id/content` i kontenery MAUI `action_bar_root`, `navigation_layout`, `navigationlayout_content`, `nav_host`) jako kotwice tożsamości. Krok 3 działa przez `identity.screenHints` (wzorce `resource-id` znacznika ekranu, dla MAUI `AutomationId` tytułu strony). Szczegóły: ADR-0006.
 

@@ -2,7 +2,14 @@
 
 MapCue (nazwa robocza, TOOL-009 „MobileGraph Explorer”) to planowane narzędzie CLI w .NET 10. Ma deterministycznie eksplorować aplikacje mobilne (Android/iOS) przez [TapCue](https://github.com/rtnk/TapCue). Buduje trwały graf ekranów, stanów i wariantów profili, kontrakty ekranów z macierzą dostępności, a zweryfikowane ścieżki eksportuje jako flow YAML TapCue.
 
-**Stan:** STEP-06 (frontier scheduler). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0 i `mapcue doctor`. Od STEP-03 jest model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Od STEP-05 działa eksploracja: `mapcue explore` (preflight → pętla `AnalyzeState`/`ExploreAction` → zakończenie, frontier w SQLite, artefakty prób) i `mapcue status`. Od STEP-06 frontier ma lease i claim zadań, dzierżawę urządzenia, dziennik faz próby, rekoncyliację po przerwanym runie, kolejność według lokalności, ryzyka, nowości i głębokości, budżety per run i `representedBy` dla wierszy list. Pozostałe komendy (`blocked`, `resume`, `report`, `export`, `diff`) to zaślepki. Od STEP-02B jest aplikacja kontrolna MAUI `samples/MapCue.DemoApp` (cel eksploracji, poza `MapCue.sln`).
+**Stan:** STEP-07 (profile i warianty). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0 i `mapcue doctor`. Od STEP-03 jest model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Od STEP-05 działa eksploracja: `mapcue explore` (preflight → pętla `AnalyzeState`/`ExploreAction` → zakończenie, frontier w SQLite, artefakty prób) i `mapcue status`. Od STEP-06 frontier ma lease i claim zadań, dzierżawę urządzenia, dziennik faz próby, rekoncyliację po przerwanym runie, kolejność według lokalności, ryzyka, nowości i głębokości, budżety per run i `representedBy` dla wierszy list. Od STEP-07 dochodzą profile i warianty:
+- profile w YAML mają `scenario`, `locale` i `switchElements`;
+- run domyślnie odmawia zmiany profilu;
+- rozpoznawane są warianty profilu na wspólnych ekranach;
+- ocena kandydatów i recipes są per kontekst;
+- porównanie profili (macierz pokrycia, klasy równoważności, hipotezy guardów) pokazuje `mapcue status --profiles`.
+
+Pozostałe komendy (`blocked`, `resume`, `report`, `export`, `diff`) to zaślepki. Od STEP-02B jest aplikacja kontrolna MAUI `samples/MapCue.DemoApp` (cel eksploracji, poza `MapCue.sln`).
 
 ## Szybki start (bez urządzenia, TapCue i LLM)
 
@@ -54,7 +61,22 @@ dotnet run --project src/MapCue.Cli -- status --config mapcue.yaml      # albo -
 - `--seed` ustala identyfikatory runu i zdarzeń: dwa runy z tym samym ziarnem na tej samej aplikacji dają ten sam graf.
 - **Wznowienie (STEP-06):** kolejny `mapcue explore` w tym samym workspace kontynuuje frontier. Run przerwany (zabity proces, budżet) zostawia zadania, które nowy run rekoncyliuje: przed `ActionDispatched` wracają do kolejki, po nim dostają `OutcomeUnknown` i nie są ponawiane. Run nie zaczyna zadania, na które nie starczy `maxActions`; `maxStates`, `maxScreens` i budżet reasonera liczą się per run.
 
-Demo na emulatorze: [`samples/MapCue.DemoApp/mapcue.demo.yaml`](samples/MapCue.DemoApp/mapcue.demo.yaml), `run-explore.sh` i porównanie z wyrocznią `compare-expected.py` (job `android-explore` w `.github/workflows/demo-app.yml`).
+## Profile (STEP-07)
+
+Jeden run eksploruje jeden profil, czyli jeden kontekst. Profile porównuje się w jednym workspace kolejnymi runami:
+
+```bash
+dotnet run --project src/MapCue.Cli -- explore --config mapcue.yaml --profile basic --seed demo-basic
+dotnet run --project src/MapCue.Cli -- explore --config mapcue.yaml --profile investor --seed demo-investor
+dotnet run --project src/MapCue.Cli -- status --config mapcue.yaml --profiles   # context / coverage / equivalent / guard
+```
+
+- **Profil** (`profiles[]`): `environment: test`, `setupFlow`, `inputs` (tylko `secret://env/NAME` albo `generated:<kind>`), `capabilities`, `scenario`, `locale`, `switchElements` (wzorce `resource-id` elementów, które wybierają ten profil).
+- **Zmiana profilu w runie** jest domyślnie odmówiona (`policy.profileSwitch: deny`): `switchElements` innych profili to `accountChange`, więc ich akcje nie są wykonywane. `allow` wyłącza tę ochronę.
+- **Wariant profilu:** ekran z kilkoma elementami więcej lub mniej w innym profilu (np. zakładka Investments) to wariant wspólnego stanu (`identity.profileVariantMaxDelta`, domyślnie 2), a nie nowy stan. Krawędzie, zadania, dowody, oceny kandydatów i recipes są zawsze per kontekst.
+- **Guard:** element nazwany jak capability (`tab.investments` ↔ `investments`) jest `inferred` po jednym profilu, a `observed` dopiero wtedy, gdy ten sam ekran widziano bez niego w profilu bez tej capability.
+
+Demo na emulatorze: [`samples/MapCue.DemoApp/mapcue.demo.yaml`](samples/MapCue.DemoApp/mapcue.demo.yaml), `run-explore.sh` (profile `basic` i `investor`) i porównanie każdego kontekstu z wyrocznią `compare-expected.py` (job `android-explore` w `.github/workflows/demo-app.yml`).
 
 ## TapCue i `mapcue doctor`
 

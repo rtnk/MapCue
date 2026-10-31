@@ -1,6 +1,6 @@
 # ADR-0006: Tożsamość stanu z drzewa UI (bez hashy pikseli), kontekst poza tożsamością stanu
 
-- Status: Proponowany (PR-00). Progi i reguły normalizacji: STEP-03 (testy), STEP-05 (nagrania demo app, fingerprint version 2, `screenHints`).
+- Status: Proponowany (PR-00). Progi i reguły normalizacji: STEP-03 (testy), STEP-05 (nagrania demo app, fingerprint version 2, `screenHints`), STEP-07 (reguła wariantu profilu, ocena kandydata per kontekst).
 - Data: 2026-10-25
 - Źródła: CAP-0105, CAP-0107, transkrypt wiadomość 2 §4–5; wzorce AppScreenMap (ADR-0005)
 
@@ -43,3 +43,18 @@ Kalibracja na nagraniach `samples/MapCue.DemoApp/recordings/` (Home po `setup-ba
 - **`screenHints`** (`identity.screenHints`, architektura §7.3 krok 3): wzorce `resource-id` elementu, który nazywa ekran. Znacznik snapshotu to zbiór pasujących `resource-id` jego elementów tożsamości. Stany z innym znacznikiem nie są porównywane podobieństwem. Ten sam znacznik przy podobieństwie poniżej `τ_screen` daje nowy stan tego ekranu, a nie nowy ekran. Hashe tożsamości się nie zmieniają, więc hinty nie wymagają nowej wersji. Wzorzec z przekroczonym limitem czasu dopasowania nie tworzy znacznika.
 - **Strony modalne MAUI** (What's new, Verify) nie mają roli `dialog` ani `android:id/*`, więc normalizacja nie oznacza ich jako `modal`. Rozróżnia je znacznik `screen.*`. `AlertDialog` (`android:id/alertTitle`, `buttonPanel`) daje `modal`. Hierarchii strony modalnej z emulatora nie ma w nagraniach: dane z joba `android-explore` (artefakt `demo-android-explore`, surowe snapshoty w `workspace/blobs`) służą do dalszej kalibracji.
 - **Wyjście z aplikacji** (`back` na ekranie głównym) jest rozpoznawane po pakietach (`AppPresenceDetector`, architektura §5.5), a ekran launchera nie staje się stanem grafu.
+
+## Implementacja w STEP-07 (profile i warianty)
+
+- **Margines Home `investor` (R-04):** Home `investor` ma z Home `basic` Jaccard 6/7 ≈ 0,857, czyli 0,007 nad `τ_state`, więc to wariant przez podobieństwo. Ten sam token (`tab.investments`) na zakładce Accounts daje 5/6 ≈ 0,83 < 0,85. Bez dodatkowej reguły Accounts `investor` byłby drugim stanem ekranu Accounts (test `Without_the_profile_variant_rule_…`). Settings (7/8 ≈ 0,875) jest blisko progu z tego samego powodu.
+- **Decyzja: reguła wariantu profilu.** Snapshot jest wariantem znanego stanu (`KnownStateVariant`, `profileVariantDelta`), gdy spełnia wszystkie warunki:
+  - z podobieństwa wyszedłby nowy stan ekranu;
+  - ma ten sam znacznik `screenHints` i te same dyskryminatory `stateKind`;
+  - różni się o ≤ `identity.profileVariantMaxDelta` tokenów (multizbiór, domyślnie 2);
+  - znany stan nie ma jeszcze wariantu w kontekście snapshotu.
+
+  Uzasadnienie: profil pokazuje albo ukrywa kilka elementów na wspólnym ekranie, a w jednym kontekście inny zbiór elementów to nadal inny stan. Reguła nie zależy od kolejności profili (subset i superset liczą się tak samo) i nie zmienia hashy, więc nie wymaga nowej `fingerprintVersion`. Zapisuje alias jak każdy `KnownStateVariant`. Bez `screenHints` nie działa (brak znacznika ekranu = brak bezpiecznej kotwicy). Odrzucone alternatywy:
+  - obniżenie `τ_state` (scalałoby stany w jednym kontekście);
+  - wyłączenie tokenów capability z tożsamości (wymagałoby listy elementów profilu i ukrywałoby różnice).
+- **Ryzyko i status kandydata są per kontekst** (`candidate_assessments`). Kandydat `(stateId, actionKey)` pozostaje wspólny jak stan. Pierwszy zapis kandydata nie decyduje już o ryzyku w innym kontekście: przycisk `profile.investor` jest `accountChange` w `basic` i `navigational` w `investor`.
+- **Konsekwencja:** na `FakeDemoProfiles` (i w wyroczni `compare-expected.py`) jeden stan odpowiada jednemu znacznikowi ekranu, a Investments jest jedynym stanem tylko w `investor`. Dowody, snapshoty, obserwacje i krawędzie są zawsze w swoim kontekście.
