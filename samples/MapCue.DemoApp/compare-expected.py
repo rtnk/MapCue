@@ -198,6 +198,14 @@ def main():
     for name, ids in sorted(by_name.items()):
         if name not in ("dialog", "?") and len(ids) > 1:
             failures.append(f"screen {name} has {len(ids)} states (duplicate from a profile or data difference, R-04): {', '.join(sorted(ids))}")
+            # Diagnostics for R-04 calibration: identity tokens each duplicate has that the first one lacks (and the reverse).
+            first = sorted(ids)[0]
+            for other in sorted(ids)[1:]:
+                a, b = names[first][2], names[other][2]
+                only_a = sorted(set(a) - set(b))
+                only_b = sorted(set(b) - set(a))
+                lines.append(f"- duplicate {name}: `{first}` ({len(a)} tokens) vs `{other}` ({len(b)} tokens)")
+                lines += [f"  - only `{first}`: `{t}`" for t in only_a] + [f"  - only `{other}`: `{t}`" for t in only_b]
     profiles = {p: c for c, p in contexts}
     for state_id, per_context in variants.items():
         for context_id, tokens in per_context.items():
