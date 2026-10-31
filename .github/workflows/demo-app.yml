@@ -4,8 +4,9 @@ name: Demo app
 # - android-build: consistency of ids/flows/oracle, MAUI workload, Release APK (artifact demo-apk).
 # - android-smoke: TapCue 0.1.0 check-syntax and the .tapcue/ flows on an Android emulator (API 34, KVM):
 #   setup of both profiles (basic, investor, basic + empty accounts) and the expected-graph.md tours.
-# - android-explore (STEP-05): `mapcue explore` (rule-based reasoner, setup-basic.yaml) on the emulator with TapCue 0.1.0 and the
-#   comparison of the discovered graph with expected-graph.md (compare-expected.py); runs on changes of MapCue itself too.
+# - android-explore (STEP-05, STEP-07): `mapcue explore` (rule-based reasoner) of the profiles basic and investor (setup-<profile>.yaml,
+#   one workspace) on the emulator with TapCue 0.1.0 and the comparison of each context with expected-graph.md (compare-expected.py);
+#   runs on changes of MapCue itself too.
 # - ios-build: manual only (workflow_dispatch with ios=true, macos-26): simulator build of net10.0-ios (R-10).
 on:
   pull_request:

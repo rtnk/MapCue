@@ -197,6 +197,7 @@ public sealed class AgentInterpreter(
                     await uow.Graph.InsertCandidateIfAbsentAsync(
                         new ActionCandidate(input.StateId, spec.ActionKey, spec.Type, spec.CanonicalSelector, spec.ParamClass, CandidateSource.Agent, spec.Risk, status, now),
                         ct);
+                    await uow.Graph.UpsertCandidateAssessmentAsync(new CandidateAssessment(input.StateId, spec.ActionKey, input.Context.ContextId, spec.Risk, status, now), ct);
                 }
 
                 await uow.Events.AppendAsync(

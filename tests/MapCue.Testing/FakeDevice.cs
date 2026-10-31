@@ -68,6 +68,9 @@ public sealed record FakeAppModel(string AppId, string StartScreenId, IReadOnlyL
 
     public string? SetupScreenId { get; init; }
 
+    /// <summary>Setup screen by flow file name (e.g. <c>setup-investor.yaml</c>); other flows land on <see cref="SetupScreenId"/>.</summary>
+    public IReadOnlyDictionary<string, string> SetupScreens { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
     public FakeScreen Screen(string id) =>
         Screens.FirstOrDefault(s => s.Id == id) ?? throw new KeyNotFoundException($"Unknown fake screen '{id}'.");
 }
@@ -206,20 +209,21 @@ public sealed class FakeDevice : IDeviceAutomation
         }
     }
 
-    /// <summary>A setup flow: when the model has <see cref="FakeAppModel.SetupScreenId"/>, a fresh start that lands there.</summary>
+    /// <summary>A setup flow: a fresh start that lands on the flow's setup screen (<see cref="FakeAppModel.SetupScreens"/>, else <see cref="FakeAppModel.SetupScreenId"/>).</summary>
     public Task<FlowRunResult> RunFlowAsync(DeviceId device, FlowFile flow, FlowRunOptions options, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(flow);
         ct.ThrowIfCancellationRequested();
         EnsureDevice(device);
-        if (_app.SetupScreenId is null)
+        var setup = _app.SetupScreens.TryGetValue(Path.GetFileName(flow.Path), out var byFlow) ? byFlow : _app.SetupScreenId;
+        if (setup is null)
         {
             return Task.FromResult(new FlowRunResult(ActionOutcome.Rejected, TimeSpan.Zero, "flows are not supported by this fake app"));
         }
 
         _flows.Add(flow.Path);
         _history.Clear();
-        Show(_app.SetupScreenId);
+        Show(setup);
         return Task.FromResult(new FlowRunResult(ActionOutcome.Succeeded, TimeSpan.Zero, null));
     }
 

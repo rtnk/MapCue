@@ -142,7 +142,7 @@ internal static class ExploreCommand
                     {
                         IExplorationReasoner reasoner = settings.Agent.Reasoner == ReasonerKind.Cli
                             ? new CliAgentReasoner(settings.Agent, secrets, hostVariable: host.Environment)
-                            : new RuleBasedReasoner(new RiskClassifier(settings.Policy.RiskRules));
+                            : new RuleBasedReasoner(new RiskClassifier(Application.Profiles.ProfileSwitchRules.For(settings, profile)));
                         var seed = parse.GetValue(seedOption);
                         var engine = new ExplorationEngine(
                             device,

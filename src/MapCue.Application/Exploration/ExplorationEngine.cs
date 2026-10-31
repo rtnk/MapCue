@@ -3,6 +3,7 @@ using MapCue.Application.Agent;
 using MapCue.Application.Configuration;
 using MapCue.Application.Graph;
 using MapCue.Application.Ports;
+using MapCue.Application.Profiles;
 using MapCue.Domain;
 using MapCue.Domain.Graph;
 
@@ -130,11 +131,16 @@ public sealed class ExplorationEngine
             _o = options;
             _profile = options.Profile;
             _started = engine.Clock.UtcNow;
-            _resolver = new ScreenIdentityResolver(IdentityResolverOptions.Default with { ScreenHints = engine.Settings.Identity.ScreenHints });
+            _resolver = new ScreenIdentityResolver(IdentityResolverOptions.Default with
+            {
+                ScreenHints = engine.Settings.Identity.ScreenHints,
+                ProfileVariantMaxDelta = engine.Settings.Identity.ProfileVariantMaxDelta,
+            });
             _recorder = new SnapshotRecorder(engine.Artifacts, engine.Redactor, engine.Clock);
             _committer = new GraphCommitter(engine.Store, engine.Clock, engine.Ids, _resolver);
             _policy = AgentPolicy.For(_profile);
-            _validator = new AgentResponseValidator(new RiskClassifier(engine.Settings.Policy.RiskRules), new PolicyGate(engine.Settings.Allowlist));
+            // Another profile's switch elements are account changes in this context (policy.profileSwitch, STEP-07).
+            _validator = new AgentResponseValidator(new RiskClassifier(ProfileSwitchRules.For(engine.Settings, _profile)), new PolicyGate(engine.Settings.Allowlist));
             // At least two observations fit in the settle timeout, whatever the configured poll interval.
             var settle = engine.Settings.Budgets.UiSettleTimeout;
             var poll = options.PollInterval < settle / 2 ? options.PollInterval : settle / 2;
@@ -330,7 +336,7 @@ public sealed class ExplorationEngine
                 return $"the device is leased by run {holder?.OwnerRunId ?? "unknown"} until {holder?.ExpiresAt.ToString("O", CultureInfo.InvariantCulture) ?? "-"}";
             }
 
-            _context = ExplorationContext.Create(_profile.ProfileId, _profile.Platform, _profile.AppId, _o.AppBuildId, _o.Locale, _o.ScenarioId, _profile.Capabilities);
+            _context = ExplorationContext.Create(_profile.ProfileId, _profile.Platform, _profile.AppId, _o.AppBuildId, _o.Locale ?? _profile.Locale, _o.ScenarioId ?? _profile.ScenarioId, _profile.Capabilities);
             _run = _run with { ContextId = _context.ContextId, DeviceId = _device.Value };
             await WriteManifestAsync(new Dictionary<string, string?> { ["tool"] = $"{version.Name} {version.Version}" }, ct);
             await _e.Store.InTransactionAsync(
@@ -676,7 +682,8 @@ public sealed class ExplorationEngine
                     return;
                 }
 
-                var spec = new ActionSpec(candidate.ActionType, candidate.CanonicalSelector, candidate.ParamClass, candidate.RiskClass, candidate.Source);
+                // The risk is this context's (the validated action of the task), never the candidate's first context (STEP-07).
+                var spec = new ActionSpec(candidate.ActionType, candidate.CanonicalSelector, candidate.ParamClass, stored.Action.EffectiveRisk, candidate.Source);
                 await JournalAsync(AttemptPhase.RestoreStarted, ct);
                 if (!await NavigateToAsync(task.FromStateId!, ct))
                 {
@@ -1042,9 +1049,9 @@ public sealed class ExplorationEngine
             _e.Store.InTransactionAsync(
                 async uow =>
                 {
-                    var states = await uow.Graph.ListStatesAsync(ct);
+                    var known = await GraphCommitter.KnownStatesAsync(uow, ct);
                     var aliases = await uow.Graph.GetIdentityAliasesAsync(normalized.FingerprintVersion, ct);
-                    var resolution = _resolver.Resolve(normalized, [.. states.Select(s => new KnownState(s.StateId, s.ScreenId, s.IdentityHash, s.FingerprintVersion, s.IdentityTokens))], aliases);
+                    var resolution = _resolver.Resolve(normalized, known, aliases, _context!.ContextId);
                     return resolution.Kind is ResolutionKind.KnownState or ResolutionKind.KnownStateVariant ? resolution.StateId : null;
                 },
                 ct);
@@ -1126,6 +1133,10 @@ public sealed class ExplorationEngine
 
         private async Task<ExplorationResult> FinishAsync(RunFinishReason reason, string? detail, CancellationToken ct)
         {
+            // Recipes of this context from its replayable edges (never from another context, never from a reasoner session).
+            var recipes = _context is not null && _start is not null
+                ? RecipeBuilder.Build(_context.ContextId, _start, _o.SetupFlowPath is not null, await NavigationGraphAsync(ct))
+                : [];
             var now = _e.Clock.UtcNow;
             _run = _run with { Status = RunStatus.Finished, FinishReason = reason, Detail = detail is null ? null : _e.Redact(detail), Counters = _counters, EndedAt = now };
             await _e.Store.InTransactionAsync(
@@ -1138,6 +1149,11 @@ public sealed class ExplorationEngine
                     }
 
                     await uow.Runs.ReleaseDeviceLeasesAsync(Owner, ct);
+                    foreach (var recipe in recipes)
+                    {
+                        await uow.Graph.UpsertRecipeAsync(recipe, ct);
+                    }
+
                     await uow.Runs.UpdateAsync(_run, ct);
                     var stats = await uow.Frontier.GetStatsAsync(ct);
                     await AppendAsync(uow, RunEventTypes.RunFinished, _run.RunId, new() { ["reason"] = reason.ToString(), ["detail"] = _run.Detail }, ct);
@@ -1209,6 +1225,33 @@ public sealed class ExplorationEngine
             uow.Events.AppendAsync(_e.Ids.NewId("evt"), type, _e.Clock.UtcNow, _context?.ContextId, subjectId, GraphJson.Serialize(payload), ct);
 
         private void Progress(string line) => _o.Progress?.Invoke(_e.Redact(line));
+    }
+}
+
+/// <summary>
+/// Reachability recipes of one context (architecture §6, §13; STEP-07): for every state reachable from the start state over replayable
+/// edges of that context, a clean start (setup flow or <c>launchApp</c>) and the shortest path (BFS, edges in id order), each step with
+/// the state expected after it. Replay with divergence detection is STEP-09; <c>verifiedAt</c> stays empty until then.
+/// </summary>
+internal static class RecipeBuilder
+{
+    public static IReadOnlyList<ReachabilityRecipe> Build(string contextId, string startStateId, bool setupFlow, NavigationGraph graph)
+    {
+        var recipes = new List<ReachabilityRecipe>();
+        foreach (var target in graph.Distances(startStateId).Keys.Order(StringComparer.Ordinal))
+        {
+            var path = graph.Path(startStateId, target);
+            if (path is null)
+            {
+                continue;
+            }
+
+            var steps = new List<RecipeStep> { new(setupFlow ? RecipeStepKind.SetupFlow : RecipeStepKind.LaunchApp, null, null, startStateId, null) };
+            steps.AddRange(path.Select(p => new RecipeStep(RecipeStepKind.Action, p.ActionKey, p.EdgeId, p.ToStateId, null)));
+            recipes.Add(new ReachabilityRecipe(ReachabilityRecipe.IdOf(contextId, target), contextId, target, steps, null, [.. path.Select(p => p.EdgeId)]));
+        }
+
+        return recipes;
     }
 }
 

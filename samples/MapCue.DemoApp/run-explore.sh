@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Installs the demo APK on a booted emulator, runs `mapcue explore` with mapcue.demo.yaml (rule-based reasoner, setup-basic.yaml)
-# and compares the discovered graph with expected-graph.md (STEP-05 demo).
+# Installs the demo APK on a booted emulator, runs `mapcue explore` with mapcue.demo.yaml for the profiles basic and investor (one run
+# per profile, one workspace; rule-based reasoner, setup-<profile>.yaml) and compares the discovered graph of each context with
+# expected-graph.md (STEP-05 demo, STEP-07 profiles).
 #   samples/MapCue.DemoApp/run-explore.sh <mapcue> <tapcue> <apk> <out-dir> [device-id]
 # <mapcue> is the published CLI (dotnet publish src/MapCue.Cli); TapCue is found on PATH (its bin directory is prepended).
 set -uo pipefail
@@ -19,19 +20,25 @@ export PATH="$(dirname "$TAPCUE"):$PATH"
 export MAPCUE_LOG_LEVEL=Information
 cd "$REPO"
 rm -rf .mapcue-demo
-start=$(date +%s)
-"$MAPCUE" explore --config samples/MapCue.DemoApp/mapcue.demo.yaml --device "$DEVICE" --seed demo --app-build "apk-$APK_SHA" \
-  > "$OUT/explore.txt" 2> "$OUT/explore.log.jsonl"
-explore=$?
-seconds=$(( $(date +%s) - start ))
-cat "$OUT/explore.txt"
-echo "explore exit code: $explore (${seconds} s)"
-"$MAPCUE" status --config samples/MapCue.DemoApp/mapcue.demo.yaml | tee "$OUT/status.txt"
+explore=0
+summary=""
+for profile in basic investor; do
+  start=$(date +%s)
+  "$MAPCUE" explore --config samples/MapCue.DemoApp/mapcue.demo.yaml --profile "$profile" --device "$DEVICE" --seed "demo-$profile" --app-build "apk-$APK_SHA" \
+    > "$OUT/explore-$profile.txt" 2> "$OUT/explore-$profile.log.jsonl"
+  code=$?
+  seconds=$(( $(date +%s) - start ))
+  cat "$OUT/explore-$profile.txt"
+  echo "explore $profile exit code: $code (${seconds} s)"
+  summary="$summary- explore $profile: exit code $code, ${seconds} s"$'\n'
+  [ "$code" -eq 0 ] || explore=$code
+done
+"$MAPCUE" status --config samples/MapCue.DemoApp/mapcue.demo.yaml --profiles | tee "$OUT/status.txt"
 
 python3 -I "$HERE/compare-expected.py" .mapcue-demo "$OUT/compare.md"
 compare=$?
 cat "$OUT/compare.md"
-{ echo "explore exit code: $explore, ${seconds} s"; echo; cat "$OUT/compare.md"; } > "$OUT/report.md"
+{ printf '%s\n' "$summary"; cat "$OUT/compare.md"; echo; echo '## mapcue status --profiles'; echo; echo '```'; cat "$OUT/status.txt"; echo '```'; } > "$OUT/report.md"
 cp -r .mapcue-demo "$OUT/workspace"
-tail -n 60 "$OUT/explore.log.jsonl"
+tail -n 30 "$OUT/explore-basic.log.jsonl" "$OUT/explore-investor.log.jsonl"
 [ "$explore" -eq 0 ] && [ "$compare" -eq 0 ]

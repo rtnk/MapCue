@@ -7,16 +7,29 @@ namespace MapCue.Application.Graph;
 /// Thresholds of the resolver (ADR-0006), checked on the STEP-02B demo recordings in STEP-05 (R-04). <see cref="ScreenHints"/> are
 /// operator patterns for the resource id of a screen marker (architecture §7.3 step 3, e.g. a MAUI <c>AutomationId</c> of the page
 /// title); hints never change an identity hash, only which known states a snapshot may be matched with.
+/// <see cref="ProfileVariantMaxDelta"/> (STEP-07, R-04): with screen hints, a snapshot of another context whose identity tokens differ from a
+/// known state by at most this many tokens (same screen marker, same state-kind discriminators) is a variant of that state, as long as the
+/// state was never seen in the snapshot's own context. 0 disables the rule.
 /// </summary>
 public sealed record IdentityResolverOptions(double StateThreshold = 0.85, double ScreenThreshold = 0.6, double AmbiguityEpsilon = 0.02)
 {
+    public const int DefaultProfileVariantMaxDelta = 2;
+
     public static IdentityResolverOptions Default { get; } = new();
 
     public IReadOnlyList<Regex> ScreenHints { get; init; } = [];
+
+    public int ProfileVariantMaxDelta { get; init; } = DefaultProfileVariantMaxDelta;
 }
 
-/// <summary>What the resolver knows about a stored state.</summary>
-public sealed record KnownState(string StateId, string ScreenId, string IdentityHash, int FingerprintVersion, IReadOnlyList<string> IdentityTokens);
+/// <summary>
+/// What the resolver knows about a stored state. <see cref="ContextIds"/> are the contexts with a variant of the state (the profile variant
+/// rule only matches states not yet seen in the snapshot's context).
+/// </summary>
+public sealed record KnownState(string StateId, string ScreenId, string IdentityHash, int FingerprintVersion, IReadOnlyList<string> IdentityTokens)
+{
+    public IReadOnlyCollection<string> ContextIds { get; init; } = [];
+}
 
 public enum ResolutionKind
 {
@@ -39,8 +52,14 @@ public enum ResolutionKind
 /// <summary>A candidate considered by the resolver, with its similarity.</summary>
 public sealed record IdentityCandidate(string StateId, string ScreenId, double Similarity);
 
-/// <summary>Result of <see cref="ScreenIdentityResolver.Resolve"/>.</summary>
-public sealed record IdentityResolution(ResolutionKind Kind, string? StateId, string? ScreenId, double Similarity, IReadOnlyList<IdentityCandidate> Candidates);
+/// <summary>
+/// Result of <see cref="ScreenIdentityResolver.Resolve"/>. <see cref="ProfileVariantDelta"/> is set when a
+/// <see cref="ResolutionKind.KnownStateVariant"/> comes from the profile variant rule (number of differing identity tokens).
+/// </summary>
+public sealed record IdentityResolution(ResolutionKind Kind, string? StateId, string? ScreenId, double Similarity, IReadOnlyList<IdentityCandidate> Candidates)
+{
+    public int? ProfileVariantDelta { get; init; }
+}
 
 /// <summary>
 /// Deterministic state recognition (architecture §7.3): exact identity hash or alias, then multiset Jaccard similarity of identity
@@ -50,12 +69,70 @@ public sealed record IdentityResolution(ResolutionKind Kind, string? StateId, st
 /// With <see cref="IdentityResolverOptions.ScreenHints"/>, the hint of a snapshot is the set of resource ids of its identity elements
 /// that match a hint pattern: states with another hint are never matched by similarity (another screen), and a state with the same
 /// hint makes a dissimilar snapshot a new state of that screen instead of a new screen.
+/// With a <c>contextId</c> (STEP-07), a snapshot that would be a new state of its screen is a variant of a known state of the same screen
+/// marker when it differs by at most <see cref="IdentityResolverOptions.ProfileVariantMaxDelta"/> identity tokens, has the same
+/// discriminators and the known state has no variant in that context yet (a profile shows or hides a few elements). Within one context a
+/// different element set stays a different state. Two such candidates at the same distance give <see cref="ResolutionKind.Ambiguous"/>.
 /// </summary>
 public sealed class ScreenIdentityResolver(IdentityResolverOptions? options = null)
 {
     private readonly IdentityResolverOptions _options = options ?? IdentityResolverOptions.Default;
 
-    public IdentityResolution Resolve(NormalizedSnapshot snapshot, IReadOnlyList<KnownState> knownStates, IReadOnlyDictionary<string, string>? aliases = null)
+    public IdentityResolution Resolve(NormalizedSnapshot snapshot, IReadOnlyList<KnownState> knownStates, IReadOnlyDictionary<string, string>? aliases = null, string? contextId = null)
+    {
+        var resolution = ResolveByStructure(snapshot, knownStates, aliases);
+        return resolution.Kind == ResolutionKind.NewStateOfScreen && contextId is not null
+            ? ProfileVariant(snapshot, knownStates, contextId) ?? resolution
+            : resolution;
+    }
+
+    /// <summary>Number of tokens in which two multisets differ (Σ |count_a − count_b|).</summary>
+    public static int Delta(IReadOnlyList<string> a, IReadOnlyList<string> b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        var ca = a.GroupBy(x => x, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+        var cb = b.GroupBy(x => x, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+        return ca.Keys.Union(cb.Keys, StringComparer.Ordinal).Sum(k => Math.Abs(ca.GetValueOrDefault(k) - cb.GetValueOrDefault(k)));
+    }
+
+    private IdentityResolution? ProfileVariant(NormalizedSnapshot snapshot, IReadOnlyList<KnownState> knownStates, string contextId)
+    {
+        var hint = Hint(snapshot.IdentityTokens);
+        if (_options.ProfileVariantMaxDelta <= 0 || hint.Count == 0)
+        {
+            return null;
+        }
+
+        var discriminators = Discriminators(snapshot.IdentityTokens);
+        var matches = knownStates
+            .Where(s => s.FingerprintVersion == snapshot.FingerprintVersion
+                && s.ContextIds.Count > 0
+                && !s.ContextIds.Contains(contextId)
+                && Hint(s.IdentityTokens).SequenceEqual(hint, StringComparer.Ordinal)
+                && Discriminators(s.IdentityTokens).SequenceEqual(discriminators, StringComparer.Ordinal))
+            .Select(s => (State: s, Delta: Delta(snapshot.IdentityTokens, s.IdentityTokens), Similarity: Jaccard(snapshot.IdentityTokens, s.IdentityTokens)))
+            .Where(x => x.Delta <= _options.ProfileVariantMaxDelta)
+            .OrderBy(x => x.Delta)
+            .ThenByDescending(x => x.Similarity)
+            .ThenBy(x => x.State.StateId, StringComparer.Ordinal)
+            .ToList();
+        if (matches.Count == 0)
+        {
+            return null;
+        }
+
+        var best = matches[0];
+        var candidates = matches.Select(x => new IdentityCandidate(x.State.StateId, x.State.ScreenId, x.Similarity)).ToList();
+        if (matches.Count > 1 && matches[1].Delta == best.Delta)
+        {
+            return new IdentityResolution(ResolutionKind.Ambiguous, null, null, best.Similarity, candidates.Take(2).ToList());
+        }
+
+        return new IdentityResolution(ResolutionKind.KnownStateVariant, best.State.StateId, best.State.ScreenId, best.Similarity, candidates) { ProfileVariantDelta = best.Delta };
+    }
+
+    private IdentityResolution ResolveByStructure(NormalizedSnapshot snapshot, IReadOnlyList<KnownState> knownStates, IReadOnlyDictionary<string, string>? aliases)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(knownStates);

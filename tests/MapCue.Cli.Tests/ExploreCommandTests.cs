@@ -102,6 +102,62 @@ public sealed class ExploreCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task Two_profiles_from_yaml_are_explored_separately_and_compared_by_status()
+    {
+        File.WriteAllText(Path.Combine(_root, "setup-investor.yaml"), "appId: com.mapcue.demoapp\n---\n- launchApp\n");
+        var config = Path.Combine(_root, "profiles.yaml");
+        File.WriteAllText(config, $$"""
+            schemaVersion: mapcue.config/1
+            workspace: {{Workspace}}
+            allowlist:
+              appIds: [com.mapcue.demoapp]
+              environments: [test]
+            budgets:
+              uiSettleTimeout: 200ms
+            policy:
+              profileSwitch: deny
+            identity:
+              screenHints:
+                - ':id/screen\.[A-Za-z0-9_.-]+$'
+              profileVariantMaxDelta: 2
+            profiles:
+              - profileId: basic
+                platform: android
+                appId: com.mapcue.demoapp
+                environment: test
+                setupFlow: setup-basic.yaml
+                switchElements: [':id/profile\.basic$']
+              - profileId: investor
+                platform: android
+                appId: com.mapcue.demoapp
+                environment: test
+                setupFlow: setup-investor.yaml
+                capabilities: [investments]
+                scenario: default
+                locale: und
+                switchElements: [':id/profile\.investor$']
+            """);
+
+        var basicDevice = new FakeDevice(FakeDemoProfiles.Create(), new ManualClock());
+        var (basic, basicOut, basicErr) = await RunAsync(basicDevice, "explore", "--config", config, "--profile", "basic", "--seed", "b", "--app-build", "demo-1");
+        var (investor, investorOut, investorErr) = await RunAsync(new FakeDevice(FakeDemoProfiles.Create(), new ManualClock()), "explore", "--config", config, "--profile", "investor", "--seed", "i", "--app-build", "demo-1");
+
+        Assert.True(basic == ExitCodes.Success, basicErr + basicOut);
+        Assert.True(investor == ExitCodes.Success, investorErr + investorOut);
+        Assert.DoesNotContain(basicDevice.ExecutedActions, a => a.TargetResourceId == FakeDemoApp.Id("profile.investor"));
+        var (code, status, _) = await RunAsync(null, "status", "--config", config, "--profiles");
+        Assert.Equal(ExitCodes.Success, code);
+        Assert.Contains("profile    investor context=ctx_", status, StringComparison.Ordinal);
+        Assert.Matches(@"context    ctx_\w+ profile=basic scenario=default build=demo-1 locale=und capabilities=\[\] states=7", status);
+        Assert.Matches(@"context    ctx_\w+ profile=investor scenario=default build=demo-1 locale=und capabilities=\[investments\] states=8", status);
+        Assert.Matches(@"guard      observed id:com\.mapcue\.demoapp:id/tab\.investments capability=investments present=\[ctx_\w+\] absent=\[ctx_\w+\] states=4", status);
+        Assert.Contains("=notObserved", status, StringComparison.Ordinal);
+
+        var (_, plain, _) = await RunAsync(null, "status", "--config", config);
+        Assert.DoesNotContain("guard ", plain, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Same_seed_gives_the_same_run_id()
     {
         var config = Config();

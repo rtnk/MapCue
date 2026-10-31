@@ -229,15 +229,16 @@ public static partial class MapCueConfigValidator
 
     private static IdentitySettings ValidateIdentity(IdentityDocument? doc, List<ConfigError> errors)
     {
-        if (doc?.ScreenHints is null)
+        if (doc is null)
         {
             return IdentitySettings.Default;
         }
 
+        var delta = Int(doc.ProfileVariantMaxDelta, IdentitySettings.Default.ProfileVariantMaxDelta, 0, 8, "identity.profileVariantMaxDelta", errors);
         var hints = new List<Regex>();
-        for (var i = 0; i < doc.ScreenHints.Count; i++)
+        for (var i = 0; i < (doc.ScreenHints?.Count ?? 0); i++)
         {
-            var pattern = doc.ScreenHints[i];
+            var pattern = doc.ScreenHints![i];
             try
             {
                 if (string.IsNullOrEmpty(pattern) || pattern.Length > 512)
@@ -253,7 +254,7 @@ public static partial class MapCueConfigValidator
             }
         }
 
-        return new IdentitySettings(hints);
+        return new IdentitySettings(hints) { ProfileVariantMaxDelta = delta };
     }
 
     private static bool ExecutableName(string value) =>
@@ -261,16 +262,30 @@ public static partial class MapCueConfigValidator
 
     private static PolicySettings ValidatePolicy(PolicyDocument? doc, List<ConfigError> errors)
     {
-        if (doc?.RiskRules is null)
+        if (doc is null)
         {
             return PolicySettings.Default;
         }
 
+        var profileSwitch = PolicySettings.Default.ProfileSwitch;
+        switch (doc.ProfileSwitch)
+        {
+            case null or "deny":
+                profileSwitch = ProfileSwitchPolicy.Deny;
+                break;
+            case "allow":
+                profileSwitch = ProfileSwitchPolicy.Allow;
+                break;
+            default:
+                errors.Add(new(ConfigErrorCodes.InvalidRiskRule, "policy.profileSwitch", "Must be 'deny' (default) or 'allow'."));
+                break;
+        }
+
         var rules = new List<MapCue.Application.Agent.OperatorRiskRule>();
-        for (var i = 0; i < doc.RiskRules.Count; i++)
+        for (var i = 0; i < (doc.RiskRules?.Count ?? 0); i++)
         {
             var path = $"policy.riskRules[{i}]";
-            var rule = doc.RiskRules[i];
+            var rule = doc.RiskRules![i];
             if (rule?.Name is null || !IdentifierPattern().IsMatch(rule.Name))
             {
                 errors.Add(new(ConfigErrorCodes.InvalidRiskRule, path + ".name", "Every rule needs a name (identifier)."));
@@ -295,7 +310,7 @@ public static partial class MapCueConfigValidator
             rules.Add(new(rule.Name, risk.Value, rule.ResourceId, idPattern, labelPattern));
         }
 
-        return new PolicySettings(rules);
+        return new PolicySettings(rules) { ProfileSwitch = profileSwitch };
     }
 
     private static Regex? RulePattern(string? pattern, string path, List<ConfigError> errors)
@@ -480,9 +495,46 @@ public static partial class MapCueConfigValidator
                 errors.Add(new(ConfigErrorCodes.InvalidProfile, $"{path}.setupFlow", "Must be the path of a TapCue flow file (.yaml or .yml), relative to the configuration file."));
             }
 
+            var scenario = doc.Scenario?.Trim() ?? ProfileSettings.DefaultScenario;
+            if (!IdentifierPattern().IsMatch(scenario))
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidProfile, $"{path}.scenario", "Scenario must be an identifier."));
+            }
+
+            var locale = doc.Locale?.Trim() ?? ProfileSettings.DefaultLocale;
+            if (!LocalePattern().IsMatch(locale))
+            {
+                errors.Add(new(ConfigErrorCodes.InvalidProfile, $"{path}.locale", "Locale must be a language tag such as en, pl-PL or und."));
+            }
+
+            var switchElements = new List<Regex>();
+            for (var e = 0; e < (doc.SwitchElements?.Count ?? 0); e++)
+            {
+                var pattern = doc.SwitchElements![e];
+                try
+                {
+                    if (string.IsNullOrEmpty(pattern) || pattern.Length > 512)
+                    {
+                        throw new ArgumentException("empty or too long");
+                    }
+
+                    switchElements.Add(new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)));
+                }
+                catch (ArgumentException)
+                {
+                    errors.Add(new(ConfigErrorCodes.InvalidProfile, $"{path}.switchElements[{e}]", "Must be a valid regular expression (1-512 characters) matched against element resource ids."));
+                }
+            }
+
             if (errors.Count == before)
             {
-                result.Add(new ProfileSettings(profileId!, platform!.Value, appId!, environment!, isolation!.Value, inputs, capabilities) { SetupFlow = setupFlow });
+                result.Add(new ProfileSettings(profileId!, platform!.Value, appId!, environment!, isolation!.Value, inputs, capabilities)
+                {
+                    SetupFlow = setupFlow,
+                    ScenarioId = scenario,
+                    Locale = locale,
+                    SwitchElements = switchElements,
+                });
             }
         }
 
@@ -606,6 +658,9 @@ public static partial class MapCueConfigValidator
 
     [GeneratedRegex("^[a-z][a-z0-9-]{0,31}$", RegexOptions.CultureInvariant)]
     private static partial Regex GeneratorPattern();
+
+    [GeneratedRegex("^(und|[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3})$", RegexOptions.CultureInvariant)]
+    private static partial Regex LocalePattern();
 
     [GeneratedRegex("^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}([-+][A-Za-z0-9.-]{1,64})?$", RegexOptions.CultureInvariant)]
     private static partial Regex VersionPattern();

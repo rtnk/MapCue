@@ -28,6 +28,22 @@ public sealed record MapCueSettings(
 public sealed record IdentitySettings(IReadOnlyList<System.Text.RegularExpressions.Regex> ScreenHints)
 {
     public static IdentitySettings Default { get; } = new([]);
+
+    /// <summary>
+    /// Profile variant rule (STEP-07, R-04): with screen hints, a snapshot of another context that differs from a known state by at most
+    /// this many identity tokens is a variant of it. 0 disables the rule.
+    /// </summary>
+    public int ProfileVariantMaxDelta { get; init; } = MapCue.Application.Graph.IdentityResolverOptions.DefaultProfileVariantMaxDelta;
+}
+
+/// <summary>What a run does with an action that would switch the app to another profile (an element of its <c>switchElements</c>).</summary>
+public enum ProfileSwitchPolicy
+{
+    /// <summary>Default: such an action is an account change (never executed under shared-readonly data, approval otherwise).</summary>
+    Deny,
+
+    /// <summary>Such actions are classified like any other element (the context's graph may then mix profiles).</summary>
+    Allow,
 }
 
 /// <summary>
@@ -37,6 +53,9 @@ public sealed record IdentitySettings(IReadOnlyList<System.Text.RegularExpressio
 public sealed record PolicySettings(IReadOnlyList<MapCue.Application.Agent.OperatorRiskRule> RiskRules)
 {
     public static PolicySettings Default { get; } = new([]);
+
+    /// <summary>Profile switches inside a run (STEP-07): denied by default.</summary>
+    public ProfileSwitchPolicy ProfileSwitch { get; init; } = ProfileSwitchPolicy.Deny;
 }
 
 public sealed record AllowlistSettings(
@@ -153,6 +172,22 @@ public sealed record ProfileSettings(
     /// configuration file. Null: the engine starts the app with a plain <c>launchApp</c>.
     /// </summary>
     public string? SetupFlow { get; init; }
+
+    /// <summary>Scenario of the profile's test data (part of the exploration context, e.g. <c>empty-accounts</c>).</summary>
+    public string ScenarioId { get; init; } = DefaultScenario;
+
+    /// <summary>Locale of the app under this profile (part of the exploration context); <c>und</c> when not set.</summary>
+    public string Locale { get; init; } = DefaultLocale;
+
+    /// <summary>
+    /// Resource id patterns of the elements that switch the app to this profile (e.g. the profile picker button). In a run of another
+    /// profile they are account changes unless <c>policy.profileSwitch</c> is <c>allow</c> (STEP-07).
+    /// </summary>
+    public IReadOnlyList<System.Text.RegularExpressions.Regex> SwitchElements { get; init; } = [];
+
+    public const string DefaultScenario = "default";
+
+    public const string DefaultLocale = "und";
 }
 
 /// <summary>How a full-fidelity observation (CLI <c>hierarchy</c>) coexists with the MCP session (ADR-0002, R-03).</summary>
