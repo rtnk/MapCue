@@ -2,10 +2,10 @@
 
 ## Status i identyfikatory
 
-- Status: **DONE**. Zakres ROADMAP STEP-07 zrealizowany, kontrole lokalne PASS. Wynik CI i demo na emulatorze: tabela dowodów i Checks PR. Merge wykonuje Robert.
+- Status: **DONE**. Zakres ROADMAP STEP-07 zrealizowany, kontrole lokalne, CI i demo dwóch profili na emulatorze PASS (run 41207480514). Merge wykonuje Robert.
 - Branch: `feat/step-07-profiles-variants` (nazwa z promptu etapu)
 - PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/10> (open, czeka na review i merge)
-- Commit SHA: kod `346b530`, dokumentacja `618049a`. Ten handoff jest w kolejnym commicie na tym samym branchu, więc aktualny head jest w PR.
+- Commit SHA: kod `346b530`, dokumentacja `618049a`, handoff `2b572d7`, diagnostyka `f7a6b29`, fingerprint v3 `11aa157` (CI PASS). Ten zapis wyników jest w kolejnym commicie (tylko dokumenty), więc aktualny head jest w PR.
 - Base branch/SHA: `main` @ `e07651b0dd55d91cadb673d384cb21d0fba87b7c` (merge PR #9; CI run 40918179871 success, Demo app run 40918179698 success)
 - Data i środowisko: 2026-10-31. Lokalnie kontener Linux x86_64 (Ubuntu 24.04), .NET SDK 10.0.114 (`apt-get install dotnet-sdk-10.0` w sesji). Bez urządzenia, Android SDK i TapCue (R-09).
 
@@ -116,7 +116,8 @@
 | Kontrola mutacją: walidator silnika bez `ProfileSwitchRules` | `ProfilesEndToEndTests`, kod tymczasowo zmieniony i przywrócony | testy wykrywają (4/9 FAIL) | — |
 | Wyrocznia na workspace z FakeDevice (oba profile) | tymczasowy test zapisujący workspace + `python3 -I samples/MapCue.DemoApp/compare-expected.py <ws> <report>` | PASS (basic 25/25, investor 33/33); przed naprawą ocen kandydatów FAIL (opisane wyżej) | — |
 | Spójność demo app | `python3 -I samples/MapCue.DemoApp/check-consistency.py` | PASS | — |
-| CI na PR | `ci.yml`, `demo-app.yml` (w tym `android-explore`: dwa profile na emulatorze z TapCue 0.1.0) | wynik w PR #10 (Checks) | PR → Checks, artefakt `demo-android-explore` |
+| Demo na emulatorze, fingerprint v3 (dwa profile, head `11aa157`) | `demo-app.yml` job `android-explore`, run 41207480514 (emulator API 34, TapCue 0.1.0, RuleBased): `run-explore.sh` → `explore --profile basic`, `--profile investor`, `status --profiles`, `compare-expected.py` | **PASS**: hard checks PASS; 8 stanów = 8 ekranów (7 wspólnych, Investments tylko `investor`), jeden stan na znacznik; `basic` 211 s, 7 stanów, 26 krawędzi, 25/25 przejść; `investor` 227 s, 8 stanów, 34 krawędzie, 33/33 przejść, 1 nowy stan i ekran; guard `tab.investments` `observed` (capability `investments`, 4 stany, 101 dowodów), `investments.buy` `inferred`; klasy równoważności: Home, Accounts, Settings 2 klasy, reszta 1; recipes 7/8; 0 akcji ryzykownych i 0 zmian profilu | artefakt `demo-android-explore` (ID 13045081894) |
+| CI na PR (head `11aa157`) | `ci.yml` (`build / test / format`), `tapcue-smoke.yml`, `demo-app.yml` (APK, flows, explore) | PASS. Job „Demo flows” najpierw FAIL na infrastrukturze runnera (`adb … animator_duration_scale`: `fork failed: Out of memory`, przed jakimkolwiek flow), po ponownym uruchomieniu w tym samym runie 41207480514 PASS | PR #10 → Checks |
 | Demo na emulatorze lokalnie | — | NOT RUN: brak Android SDK i emulatora w sesji (R-09) | — |
 
 ## Ograniczenia, ryzyka, otwarte pytania
@@ -138,7 +139,7 @@
 ## Stan roadmapy
 
 - STEP-00…06 i 02B: zmergowane. STEP-07: PR #10 otwarty.
-- W `docs/ROADMAP.md` zaktualizowane: statusy 06 i 07, R-04 (wynik sprawdzenia marginesu i reguła), R-06 (odmowa zmiany profilu, oceny per kontekst). Macierz platform bez zmian do wyniku CI; demo dwóch profili na emulatorze sprawdza job `android-explore` w PR.
+- W `docs/ROADMAP.md` zaktualizowane: statusy 06 i 07, R-04 (wynik sprawdzenia marginesu, fingerprint v3 i reguła), R-06 (odmowa zmiany profilu, oceny per kontekst), macierz platform (Android emulator: dwa profile, run 41207480514).
 - Następny: STEP-08 (Screen Contract & accessibility, zależy od 07) albo STEP-09 (Recovery & operator handoff, zależy od 06, a od 07 dla wariantów). Oba po merge tego PR.
 
 ## Warunki startu STEP-08 (i STEP-09)
