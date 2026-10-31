@@ -4,7 +4,7 @@
 
 - Status: **DONE**. Zakres ROADMAP STEP-06 zrealizowany, kontrole lokalne PASS. Wynik CI i demo na emulatorze jest w Checks PR. Merge wykonuje Robert.
 - Branch: `feat/step-06-frontier-scheduler` (nazwa z promptu etapu)
-- PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/9> (open, czeka na review i merge)
+- PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/9> (merged 2026-10-29, merge `e07651b`)
 - Commit SHA: kod `4b11af1`, dokumentacja `86ac67a`. Ten handoff jest w kolejnym commicie na tym samym branchu, więc aktualny head jest w PR.
 - Base branch/SHA: `main` @ `044c5e40417837208469c660614fd48b5a11496f` (merge PR #8; CI run 40370435555 success, Demo app run 40370435341 success)
 - Data i środowisko: 2026-10-29. Lokalnie kontener Linux x86_64 (Ubuntu 24.04), .NET SDK 10.0.113 (`apt-get install dotnet-sdk-10.0` w sesji). Bez urządzenia, Android SDK i TapCue (R-09).

@@ -144,6 +144,7 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
         await uow.Graph.InsertCandidateIfAbsentAsync(
             new ActionCandidate(from.StateId, actionKey, commit.Action.Type, commit.Action.CanonicalSelector, commit.Action.ParamClass, commit.Action.Source, commit.Action.Risk, CandidateStatus.Explored, now),
             ct);
+        await uow.Graph.UpsertCandidateAssessmentAsync(new CandidateAssessment(from.StateId, actionKey, context.ContextId, commit.Action.Risk, CandidateStatus.Explored, now), ct);
 
         var edge = await uow.Graph.GetEdgeAsync(from.StateId, actionKey, context.ContextId, ct);
         if (edge is null)
@@ -250,6 +251,7 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
                     await uow.Graph.InsertCandidateIfAbsentAsync(
                         new ActionCandidate(fromStateId, spec.ActionKey, spec.Type, spec.CanonicalSelector, spec.ParamClass, spec.Source, spec.Risk, CandidateStatus.Scheduled, now),
                         ct);
+                    await uow.Graph.UpsertCandidateAssessmentAsync(new CandidateAssessment(fromStateId, spec.ActionKey, context.ContextId, spec.Risk, CandidateStatus.Scheduled, now), ct);
                     var key = TaskKeys.ExploreAction(fromStateId, spec.ActionKey, context);
                     var task = NewTask(key, TaskType.ExploreAction, context, fromStateId, spec.ActionKey, depth, now) with { Priority = scheduled.Priority };
                     if (scheduled.RepresentedByActionKey is { } representative)
@@ -278,6 +280,23 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
             ct);
     }
 
+    /// <summary>
+    /// Known states for identity resolution with the contexts that have a variant of each (the profile variant rule, STEP-07). The engine's
+    /// read-only resolution uses the same list, so it resolves exactly like the commit.
+    /// </summary>
+    public static async Task<IReadOnlyList<KnownState>> KnownStatesAsync(IUnitOfWork uow, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(uow);
+        var contexts = (await uow.Graph.ListVariantsAsync(ct)).ToLookup(v => v.StateId, v => v.ContextId, StringComparer.Ordinal);
+        return
+        [
+            .. (await uow.Graph.ListStatesAsync(ct)).Select(s => new KnownState(s.StateId, s.ScreenId, s.IdentityHash, s.FingerprintVersion, s.IdentityTokens)
+            {
+                ContextIds = contexts[s.StateId].ToHashSet(StringComparer.Ordinal),
+            }),
+        ];
+    }
+
     /// <summary>Task id of a task key (content-derived, so a representative's id is known before it is stored).</summary>
     public static string TaskIdOf(string taskKey) => ContentHash.ShortId("task", taskKey);
 
@@ -287,10 +306,9 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
     private async Task<Placement> PlaceAsync(IUnitOfWork uow, ExplorationContext context, RecordedSnapshot recorded, string? attemptId, DateTimeOffset now, CancellationToken ct)
     {
         var normalized = recorded.Normalized;
-        var states = await uow.Graph.ListStatesAsync(ct);
+        var known = await KnownStatesAsync(uow, ct);
         var aliases = await uow.Graph.GetIdentityAliasesAsync(normalized.FingerprintVersion, ct);
-        var known = states.Select(s => new KnownState(s.StateId, s.ScreenId, s.IdentityHash, s.FingerprintVersion, s.IdentityTokens)).ToList();
-        var resolution = _resolver.Resolve(normalized, known, aliases);
+        var resolution = _resolver.Resolve(normalized, known, aliases, context.ContextId);
 
         string stateId;
         string screenId;
@@ -347,12 +365,24 @@ public sealed class GraphCommitter(IStateStore store, IClock clock, IIdGenerator
         var newVariant = variant is null;
         if (variant is null)
         {
-            await uow.Graph.UpsertVariantAsync(new ScreenVariant(stateId, context.ContextId, normalized.ElementSetHash, added, removed, 1, now, now), ct);
-            await AppendAsync(uow, GraphEventTypes.VariantDiscovered, now, context, stateId, new() { ["elementSetHash"] = normalized.ElementSetHash }, ct);
+            await uow.Graph.UpsertVariantAsync(new ScreenVariant(stateId, context.ContextId, normalized.ElementSetHash, added, removed, 1, now, now) { IdentityTokens = normalized.IdentityTokens }, ct);
+            await AppendAsync(
+                uow,
+                GraphEventTypes.VariantDiscovered,
+                now,
+                context,
+                stateId,
+                new()
+                {
+                    ["elementSetHash"] = normalized.ElementSetHash,
+                    ["resolution"] = resolution.Kind.ToString(),
+                    ["profileVariantDelta"] = resolution.ProfileVariantDelta?.ToString(CultureInfo.InvariantCulture),
+                },
+                ct);
         }
         else if (newSnapshot)
         {
-            await uow.Graph.UpsertVariantAsync(variant with { ElementSetHash = normalized.ElementSetHash, AddedElementKeys = added, RemovedElementKeys = removed, SnapshotCount = variant.SnapshotCount + 1, LastSeenAt = now }, ct);
+            await uow.Graph.UpsertVariantAsync(variant with { ElementSetHash = normalized.ElementSetHash, AddedElementKeys = added, RemovedElementKeys = removed, SnapshotCount = variant.SnapshotCount + 1, LastSeenAt = now, IdentityTokens = normalized.IdentityTokens }, ct);
         }
 
         if (newSnapshot)

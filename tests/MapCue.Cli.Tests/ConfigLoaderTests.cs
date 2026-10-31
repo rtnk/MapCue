@@ -18,9 +18,26 @@ public class ConfigLoaderTests
         var result = MapCueConfigLoader.LoadFile(CliTestHarness.RepoFile("docs/examples/mapcue.example.yaml"));
 
         Assert.True(result.IsValid, string.Join("\n", result.Errors));
-        var profile = Assert.Single(result.Settings!.Profiles);
-        Assert.Equal("basic", profile.ProfileId);
+        Assert.Equal(["basic", "investor"], result.Settings!.Profiles.Select(p => p.ProfileId));
+        Assert.Equal(["investments"], result.Settings.Profiles[1].Capabilities);
+        Assert.Equal(ProfileSwitchPolicy.Deny, result.Settings.Policy.ProfileSwitch);
         Assert.Equal(Budgets.Default, result.Settings.Budgets);
+    }
+
+    [Fact]
+    public void Demo_config_has_both_profiles_with_their_switch_elements()
+    {
+        var result = MapCueConfigLoader.LoadFile(CliTestHarness.RepoFile("samples/MapCue.DemoApp/mapcue.demo.yaml"));
+
+        Assert.True(result.IsValid, string.Join("\n", result.Errors));
+        var settings = result.Settings!;
+        Assert.Equal(["basic", "investor"], settings.Profiles.Select(p => p.ProfileId));
+        Assert.Matches(Assert.Single(settings.Profiles[0].SwitchElements), "com.mapcue.demoapp:id/profile.basic");
+        Assert.Matches(Assert.Single(settings.Profiles[1].SwitchElements), "com.mapcue.demoapp:id/profile.investor");
+        Assert.Equal(".tapcue/setup-investor.yaml", settings.Profiles[1].SetupFlow);
+        Assert.Empty(settings.Policy.RiskRules);
+        var rule = Assert.Single(MapCue.Application.Profiles.ProfileSwitchRules.For(settings, settings.Profiles[0]));
+        Assert.True(rule.Matches("com.mapcue.demoapp:id/profile.investor", []));
     }
 
     [Fact]

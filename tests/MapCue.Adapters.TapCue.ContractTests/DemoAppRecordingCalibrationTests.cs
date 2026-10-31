@@ -116,6 +116,23 @@ public class DemoAppRecordingCalibrationTests
     }
 
     [Fact]
+    public void The_investor_home_is_also_a_profile_variant_with_a_margin_of_one_token()
+    {
+        // R-04 (STEP-07): 0.857 is 0.007 above τ_state; the profile variant rule does not depend on that margin: one token of difference
+        // (≤ identity.profileVariantMaxDelta = 2), same screen marker, the basic state not yet seen in the investor context.
+        var basic = Normalize(Basic);
+        var investor = Normalize(Investor);
+        var hints = IdentityResolverOptions.Default with { ScreenHints = [new Regex(@":id/screen\.[A-Za-z0-9_.-]+$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100))] };
+        var known = Known("home", basic) with { ContextIds = ["ctx_basic"] };
+
+        Assert.Equal(1, ScreenIdentityResolver.Delta(basic.IdentityTokens, investor.IdentityTokens));
+        var strict = new ScreenIdentityResolver(hints with { StateThreshold = 0.9 });
+        Assert.Equal(ResolutionKind.NewStateOfScreen, strict.Resolve(investor, [known]).Kind);
+        var result = strict.Resolve(investor, [known], null, "ctx_investor");
+        Assert.Equal((ResolutionKind.KnownStateVariant, "home", 1), (result.Kind, result.StateId, result.ProfileVariantDelta));
+    }
+
+    [Fact]
     public void The_app_is_detected_in_the_foreground_and_the_launcher_outside_it()
     {
         Assert.Equal(AppPresence.InApp, AppPresenceDetector.Of(Normalize(Basic), App));

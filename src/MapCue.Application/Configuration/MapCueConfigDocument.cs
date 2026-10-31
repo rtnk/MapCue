@@ -31,6 +31,8 @@ public sealed class MapCueConfigDocument
 public sealed class IdentityDocument
 {
     public List<string>? ScreenHints { get; set; }
+
+    public int? ProfileVariantMaxDelta { get; set; }
 }
 
 public sealed class AllowlistDocument
@@ -103,6 +105,8 @@ public sealed class AgentDocument
 public sealed class PolicyDocument
 {
     public List<RiskRuleDocument>? RiskRules { get; set; }
+
+    public string? ProfileSwitch { get; set; }
 }
 
 public sealed class RiskRuleDocument
@@ -135,6 +139,12 @@ public sealed class ProfileDocument
     public List<string>? Capabilities { get; set; }
 
     public string? SetupFlow { get; set; }
+
+    public string? Scenario { get; set; }
+
+    public string? Locale { get; set; }
+
+    public List<string>? SwitchElements { get; set; }
 }
 
 public sealed class TapcueDocument

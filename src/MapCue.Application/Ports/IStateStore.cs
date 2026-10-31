@@ -78,6 +78,15 @@ public interface IGraphRepository
 
     Task<IReadOnlyList<ActionCandidate>> ListCandidatesAsync(string? stateId, CancellationToken ct);
 
+    /// <summary>
+    /// Records the risk and status of a candidate in a context (STEP-07). An existing assessment takes the new risk and raises its status
+    /// (<see cref="CandidateAssessment.Rank"/>), never lowers it. The candidate must exist.
+    /// </summary>
+    Task UpsertCandidateAssessmentAsync(CandidateAssessment assessment, CancellationToken ct);
+
+    /// <summary>Assessments of one context (or all), by context, state and action.</summary>
+    Task<IReadOnlyList<CandidateAssessment>> ListCandidateAssessmentsAsync(string? contextId, CancellationToken ct);
+
     Task<ScreenEdge?> GetEdgeAsync(string fromStateId, string actionKey, string contextId, CancellationToken ct);
 
     Task InsertEdgeAsync(ScreenEdge edge, CancellationToken ct);
@@ -96,6 +105,9 @@ public interface IGraphRepository
     Task UpsertRecipeAsync(ReachabilityRecipe recipe, CancellationToken ct);
 
     Task<ReachabilityRecipe?> GetRecipeAsync(string recipeId, CancellationToken ct);
+
+    /// <summary>Recipes of one context (or of all contexts), by context and target state.</summary>
+    Task<IReadOnlyList<ReachabilityRecipe>> ListRecipesAsync(string? contextId, CancellationToken ct);
 }
 
 /// <summary>Frontier tasks, attempts and checkpoints.</summary>

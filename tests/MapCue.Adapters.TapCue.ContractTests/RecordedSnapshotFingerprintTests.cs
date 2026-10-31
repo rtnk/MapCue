@@ -66,13 +66,14 @@ public class RecordedSnapshotFingerprintTests
     }
 
     [Fact]
-    public void Recorded_snapshots_have_pinned_identity_hashes_for_fingerprint_version_2()
+    public void Recorded_snapshots_have_pinned_identity_hashes_for_fingerprint_version_3()
     {
         // A change here means the fingerprint changed: bump SnapshotNormalizer.FingerprintVersion (ADR-0006 §4).
         // Version 2 (STEP-05): framework containers such as android:id/content are no longer identity anchors.
-        Assert.Equal(2, SnapshotNormalizer.FingerprintVersion);
-        Assert.Equal("sha256:73a4bd7b916ba81c9873b9b35dd2deaa607edff3bd3c28f9971847052c041bd5", Normalize(Settings).IdentityHash);
-        Assert.Equal("sha256:ab3e9053fc1b9197fb5d622f9f9946debb46a9f5530a6512661ecc9ac5604f2a", Normalize(Launcher).IdentityHash);
+        // Version 3 (STEP-07): the container of a detected list (Settings rows, launcher workspace) is an anchor, not an interactive token.
+        Assert.Equal(3, SnapshotNormalizer.FingerprintVersion);
+        Assert.Equal("sha256:603595d91c6dfdf996aed366e06023080a50870ab3f958394c839b3b09981754", Normalize(Settings).IdentityHash);
+        Assert.Equal("sha256:887f6f4ba06f2262a3304b9dbf37b744a0a41a6544d3e38f2d6e1bedb3f2af07", Normalize(Launcher).IdentityHash);
     }
 
     [Fact]

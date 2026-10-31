@@ -14,7 +14,8 @@ public sealed record NormalizationOptions(Platform Platform, IReadOnlyCollection
 /// <list type="number">
 /// <item>System UI subtrees are removed by explicit <see cref="SystemUiRule"/>s; containers left empty by that removal go too.</item>
 /// <item>Labels are masked by <see cref="TextMasker"/>.</item>
-/// <item>A list is a container whose children repeat one shape: a scrollable container with ≥ 2 such children (or none at all),
+/// <item>A list is a container whose children repeat one shape: a scrollable container or a list widget (role <c>list</c>, whether it
+/// scrolls or not) with ≥ 2 such children (or none at all),
 /// or any container with ≥ 3 (there only children with the rows' root element are rows). Rows count only as <c>list(templateHash, countBucket)</c>, so 3 and 7 rows are the same state
 /// and an empty list is a different one. Children are compared as a multiset, not by adjacency, so order never matters.</item>
 /// <item><c>elementKey</c>: resource id, else role + masked label, else role + structural path from the nearest keyed ancestor (weak).</item>
@@ -25,8 +26,13 @@ public sealed record NormalizationOptions(Platform Platform, IReadOnlyCollection
 public static partial class SnapshotNormalizer
 {
     /// <summary>Version of the algorithm (rules, masking, list detection, keys). Any change of output requires a new version.</summary>
-    /// <remarks>Version 2 (STEP-05): framework containers (<see cref="FrameworkContainerRules"/>) are no longer identity anchors.</remarks>
-    public const int FingerprintVersion = 2;
+    /// <remarks>
+    /// Version 2 (STEP-05): framework containers (<see cref="FrameworkContainerRules"/>) are no longer identity anchors.
+    /// Version 3 (STEP-07): a list widget is a list even when it does not scroll (a RecyclerView whose rows fit is not scrollable, so with
+    /// version 2 the same screen with 2 and 3 rows had different identities), and the container of a detected list is never an interactive
+    /// identity token (its scrollability depends on how many rows fit).
+    /// </remarks>
+    public const int FingerprintVersion = 3;
 
     public const string CountBucketEmpty = "0";
     public const string CountBucketOne = "1";
@@ -103,6 +109,7 @@ public static partial class SnapshotNormalizer
 
         var tokens = new List<string>();
         var elementSet = new List<string>();
+        var listContainers = lists.Select(l => l.ContainerKey).ToHashSet(StringComparer.Ordinal);
         foreach (var node in kept)
         {
             if (node.Raw.Selected)
@@ -115,7 +122,9 @@ public static partial class SnapshotNormalizer
                 continue;
             }
 
-            if (node.Interactive)
+            // The container of a detected list is identified by its list token and, with a resource id, as an anchor: whether it scrolls
+            // (how many rows fit on the screen) never changes the identity (version 3).
+            if (node.Interactive && !listContainers.Contains(node.Key!))
             {
                 tokens.Add("i:" + node.Key);
             }
@@ -316,12 +325,15 @@ public static partial class SnapshotNormalizer
                 continue;
             }
 
+            // A list widget (RecyclerView, ListView, CollectionView…) is a list whether or not it scrolls right now: Android reports a
+            // RecyclerView as scrollable only when its rows overflow, so two and three rows must not give different identities (version 3).
+            var listLike = node.Raw.Scrollable || node.Role == "list";
             var children = node.Children.Select(c => nodes[c]).Where(c => !c.Removed).ToList();
             string template;
             int rows;
             if (children.Count == 0)
             {
-                if (!node.Raw.Scrollable)
+                if (!listLike)
                 {
                     continue;
                 }
@@ -336,7 +348,7 @@ public static partial class SnapshotNormalizer
                     .OrderByDescending(g => g.Count)
                     .ThenBy(g => g.Shape, StringComparer.Ordinal)
                     .First();
-                if (dominant.Count < (node.Raw.Scrollable ? 2 : 3))
+                if (dominant.Count < (listLike ? 2 : 3))
                 {
                     continue;
                 }
@@ -348,7 +360,7 @@ public static partial class SnapshotNormalizer
                 // root element (role, resource id, flags) whose subtree differs, e.g. a partially visible last row; other siblings
                 // keep their own identity.
                 var rowRoot = children.First(c => c.Shape == template).RootSignature;
-                foreach (var child in children.Where(c => node.Raw.Scrollable || c.Shape == template || c.RootSignature == rowRoot))
+                foreach (var child in children.Where(c => listLike || c.Shape == template || c.RootSignature == rowRoot))
                 {
                     MarkRow(child, nodes, template);
                 }

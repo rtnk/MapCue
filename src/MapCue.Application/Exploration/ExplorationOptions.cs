@@ -18,9 +18,11 @@ public sealed record ExplorationOptions(ProfileSettings Profile, string RunsDire
 
     public string AppBuildId { get; init; } = "unknown";
 
-    public string Locale { get; init; } = "und";
+    /// <summary>Overrides the profile's locale (null: <see cref="ProfileSettings.Locale"/>).</summary>
+    public string? Locale { get; init; }
 
-    public string ScenarioId { get; init; } = "default";
+    /// <summary>Overrides the profile's scenario (null: <see cref="ProfileSettings.ScenarioId"/>).</summary>
+    public string? ScenarioId { get; init; }
 
     public IReadOnlyCollection<string>? InputValues { get; init; }
 

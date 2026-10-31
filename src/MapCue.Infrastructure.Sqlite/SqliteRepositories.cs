@@ -42,7 +42,7 @@ internal sealed class SqliteGraphRepository(SqliteConnection connection, SqliteT
 {
     private const string ContextColumns = "context_id, signature, profile_id, platform, app_id, app_build_id, locale, scenario_id, capabilities_json";
     private const string StateColumns = "state_id, screen_id, state_kind, identity_hash, fingerprint_version, identity_tokens_json, base_element_keys_json, identity_status, created_at";
-    private const string VariantColumns = "state_id, context_id, element_set_hash, added_keys_json, removed_keys_json, snapshot_count, first_seen_at, last_seen_at";
+    private const string VariantColumns = "state_id, context_id, element_set_hash, added_keys_json, removed_keys_json, snapshot_count, first_seen_at, last_seen_at, identity_tokens_json";
     private const string SnapshotColumns = "snapshot_id, snapshot_key, context_id, attempt_id, fidelity, payload_hash, raw_sha256, normalized_sha256, identity_hash, layout_hash, element_set_hash, fingerprint_version, state_id, screenshot_sha256, redaction_version, observed_at";
     private const string EvidenceColumns = "evidence_id, kind, artifact_sha256, length, context_id, snapshot_id, attempt_id, redaction_count, redaction_rules_json, created_at";
     private const string CandidateColumns = "state_id, action_key, action_type, canonical_selector, param_class, source, risk_class, status, created_at";
@@ -140,9 +140,10 @@ internal sealed class SqliteGraphRepository(SqliteConnection connection, SqliteT
         ArgumentNullException.ThrowIfNull(variant);
         return ExecuteAsync(
             $"""
-            INSERT INTO screen_variants ({VariantColumns}) VALUES ($state, $ctx, $hash, $added, $removed, $count, $first, $last)
+            INSERT INTO screen_variants ({VariantColumns}) VALUES ($state, $ctx, $hash, $added, $removed, $count, $first, $last, $tokens)
             ON CONFLICT(state_id, context_id) DO UPDATE SET element_set_hash = excluded.element_set_hash, added_keys_json = excluded.added_keys_json,
-                removed_keys_json = excluded.removed_keys_json, snapshot_count = excluded.snapshot_count, last_seen_at = excluded.last_seen_at
+                removed_keys_json = excluded.removed_keys_json, snapshot_count = excluded.snapshot_count, last_seen_at = excluded.last_seen_at,
+                identity_tokens_json = excluded.identity_tokens_json
             """,
             ct,
             ("$state", variant.StateId),
@@ -152,7 +153,8 @@ internal sealed class SqliteGraphRepository(SqliteConnection connection, SqliteT
             ("$removed", Db.Json(variant.RemovedElementKeys)),
             ("$count", variant.SnapshotCount),
             ("$first", Db.Time(variant.FirstSeenAt)),
-            ("$last", Db.Time(variant.LastSeenAt)));
+            ("$last", Db.Time(variant.LastSeenAt)),
+            ("$tokens", Db.Json(variant.IdentityTokens)));
     }
 
     public async Task<IReadOnlyList<ScreenVariant>> ListVariantsAsync(CancellationToken ct) =>
@@ -240,6 +242,41 @@ internal sealed class SqliteGraphRepository(SqliteConnection connection, SqliteT
             ? await QueryAsync($"SELECT {CandidateColumns} FROM action_candidates ORDER BY state_id, action_key", MapCandidate, ct)
             : await QueryAsync($"SELECT {CandidateColumns} FROM action_candidates WHERE state_id = $state ORDER BY action_key", MapCandidate, ct, ("$state", stateId));
 
+    public async Task UpsertCandidateAssessmentAsync(CandidateAssessment assessment, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(assessment);
+        var current = await SingleOrDefaultAsync(
+            $"SELECT {AssessmentColumns} FROM candidate_assessments WHERE state_id = $state AND action_key = $key AND context_id = $ctx",
+            MapAssessment,
+            ct,
+            ("$state", assessment.StateId),
+            ("$key", assessment.ActionKey),
+            ("$ctx", assessment.ContextId));
+        var status = current is not null && CandidateAssessment.Rank(current.Status) > CandidateAssessment.Rank(assessment.Status) ? current.Status : assessment.Status;
+        await ExecuteAsync(
+            $"""
+            INSERT INTO candidate_assessments ({AssessmentColumns}) VALUES ($state, $key, $ctx, $risk, $status, $at)
+            ON CONFLICT(state_id, action_key, context_id) DO UPDATE SET risk_class = excluded.risk_class, status = excluded.status, updated_at = excluded.updated_at
+            """,
+            ct,
+            ("$state", assessment.StateId),
+            ("$key", assessment.ActionKey),
+            ("$ctx", assessment.ContextId),
+            ("$risk", assessment.RiskClass.ToString()),
+            ("$status", status.ToString()),
+            ("$at", Db.Time(assessment.UpdatedAt)));
+    }
+
+    public async Task<IReadOnlyList<CandidateAssessment>> ListCandidateAssessmentsAsync(string? contextId, CancellationToken ct) =>
+        contextId is null
+            ? await QueryAsync($"SELECT {AssessmentColumns} FROM candidate_assessments ORDER BY context_id, state_id, action_key", MapAssessment, ct)
+            : await QueryAsync($"SELECT {AssessmentColumns} FROM candidate_assessments WHERE context_id = $ctx ORDER BY state_id, action_key", MapAssessment, ct, ("$ctx", contextId));
+
+    private const string AssessmentColumns = "state_id, action_key, context_id, risk_class, status, updated_at";
+
+    private static CandidateAssessment MapAssessment(SqliteDataReader r) =>
+        new(r.GetString(0), r.GetString(1), r.GetString(2), Db.ReadEnum<MapCue.Domain.RiskClass>(r, 3), Db.ReadEnum<CandidateStatus>(r, 4), Db.ReadTime(r, 5));
+
     public Task<ScreenEdge?> GetEdgeAsync(string fromStateId, string actionKey, string contextId, CancellationToken ct) =>
         SingleOrDefaultAsync(
             $"SELECT {EdgeColumns} FROM screen_edges WHERE from_state_id = $from AND action_key = $key AND context_id = $ctx",
@@ -312,11 +349,17 @@ internal sealed class SqliteGraphRepository(SqliteConnection connection, SqliteT
     }
 
     public Task<ReachabilityRecipe?> GetRecipeAsync(string recipeId, CancellationToken ct) =>
-        SingleOrDefaultAsync(
-            "SELECT recipe_id, context_id, target_state_id, steps_json, verified_at, based_on_edges_json FROM reachability_recipes WHERE recipe_id = $id",
-            r => new ReachabilityRecipe(r.GetString(0), r.GetString(1), r.GetString(2), Db.ReadJson<List<RecipeStep>>(r, 3), Db.ReadTimeOrNull(r, 4), Db.ReadJson<List<string>>(r, 5)),
-            ct,
-            ("$id", recipeId));
+        SingleOrDefaultAsync($"SELECT {RecipeColumns} FROM reachability_recipes WHERE recipe_id = $id", MapRecipe, ct, ("$id", recipeId));
+
+    public async Task<IReadOnlyList<ReachabilityRecipe>> ListRecipesAsync(string? contextId, CancellationToken ct) =>
+        contextId is null
+            ? await QueryAsync($"SELECT {RecipeColumns} FROM reachability_recipes ORDER BY context_id, target_state_id", MapRecipe, ct)
+            : await QueryAsync($"SELECT {RecipeColumns} FROM reachability_recipes WHERE context_id = $ctx ORDER BY target_state_id", MapRecipe, ct, ("$ctx", contextId));
+
+    private const string RecipeColumns = "recipe_id, context_id, target_state_id, steps_json, verified_at, based_on_edges_json";
+
+    private static ReachabilityRecipe MapRecipe(SqliteDataReader r) =>
+        new(r.GetString(0), r.GetString(1), r.GetString(2), Db.ReadJson<List<RecipeStep>>(r, 3), Db.ReadTimeOrNull(r, 4), Db.ReadJson<List<string>>(r, 5));
 
     internal static void EnsureOne(int rows, string what, string id)
     {
@@ -359,7 +402,10 @@ internal sealed class SqliteGraphRepository(SqliteConnection connection, SqliteT
         new(r.GetString(0), r.GetString(1), Db.ReadEnum<StateKind>(r, 2), r.GetString(3), r.GetInt32(4), Db.ReadJson<List<string>>(r, 5), Db.ReadJson<List<string>>(r, 6), Db.ReadEnum<IdentityStatus>(r, 7), Db.ReadTime(r, 8));
 
     private static ScreenVariant MapVariant(SqliteDataReader r) =>
-        new(r.GetString(0), r.GetString(1), r.GetString(2), Db.ReadJson<List<string>>(r, 3), Db.ReadJson<List<string>>(r, 4), r.GetInt32(5), Db.ReadTime(r, 6), Db.ReadTime(r, 7));
+        new(r.GetString(0), r.GetString(1), r.GetString(2), Db.ReadJson<List<string>>(r, 3), Db.ReadJson<List<string>>(r, 4), r.GetInt32(5), Db.ReadTime(r, 6), Db.ReadTime(r, 7))
+        {
+            IdentityTokens = Db.ReadJson<List<string>>(r, 8),
+        };
 
     private static UiSnapshot MapSnapshot(SqliteDataReader r) =>
         new(
