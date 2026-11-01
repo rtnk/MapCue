@@ -124,8 +124,8 @@ Wniosek dla MapCue (ADR-0002): do **eksploracji** (szybka obserwacja, identyfika
 | G-01 | Brak timeoutu i anulowania w MCP `run` / `inspect_screen` | nie da się przerwać pojedynczej akcji | twardy timeout i zabicie procesu MCP z restartem sesji; wynik `OutcomeUnknown` | parametr `timeout_ms` i obsługa `notifications/cancelled` |
 | G-02 | `inspect_screen` stratny (§3.2) | słabszy ScreenContract i a11y | pełne `tapcue hierarchy` przez CLI | opcja `format: full` w `inspect_screen` (lossless `TreeNode`) |
 | G-03 | iOS: brak `class`/typu elementu, `clickable`, `scrollable` w `TreeNode` | role i akcje na iOS tylko wnioskowane | heurystyki (traits z etykiety, rozmiar), status `inferred` | dodać `elementType`/traits do mapowania iOS |
-| G-04 | iOS: brak `pressKey: Tab` | brak grafu fokusu klawiatury na iOS | `unsupported` w macierzy a11y | mapowanie Tab/Shift+Tab (Full Keyboard Access) |
-| G-05 | Brak sterowania TalkBack/VoiceOver | brak poziomu `assistiveVerified` z automatu | protokół manualny operatora lub osobny adapter (P1/P2), zawsze jawny | (poza zakresem TapCue, decyzja w STEP-08) |
+| G-04 | iOS: brak `pressKey: Tab` | brak grafu fokusu klawiatury na iOS | `unsupported` w macierzy a11y (STEP-08: zadanie `AuditAccessibility` nie powstaje na iOS, rekord klawiatury iOS odrzucany) | mapowanie Tab/Shift+Tab (Full Keyboard Access) |
+| G-05 | Brak sterowania TalkBack/VoiceOver | brak poziomu `assistiveVerified` z automatu | **decyzja STEP-08:** protokół manualny operatora (`mapcue a11y record`, `docs/a11y-manual-protocol.md`) jako jedyna droga do `assistiveVerified`; komórki `automated` czytników = `unsupported` | (poza zakresem TapCue) |
 | G-06 | `run` odsyła `env_vars` i dziedziczy `MAESTRO_*` | wyciek sekretów do artefaktów | czyste środowisko procesu + redakcja wyniku | opcja wyłączenia echa `env_vars` |
 | G-07 | `serverInfo.version` na sztywno `1.0.0` | brak negocjacji wersji przez MCP | `tapcue --version` w preflight | raportować `CLI_VERSION` w `serverInfo` |
 | G-08 | Błędy jako tekst (`isError`) | krucha klasyfikacja błędów | tabela wzorców w testach kontraktowych, nieznany tekst → `Unknown` | strukturalny kod błędu w wyniku |
@@ -204,3 +204,10 @@ Odtwarzalne skrypty: `docs/spikes/tapcue-smoke/`.
 - **`back` na ekranach głównych** prowadzi do launchera (`com.google.android.apps.nexuslauncher`), co MapCue wykrywa po pakietach `resource-id` (4 krawędzie `executed` bez celu). `back` na Verify nie zmienia ekranu.
 - **Strona ładowania** (1500 ms) nie stała się stanem: stabilizacja czeka, aż zniknie wskaźnik.
 - Raport, `status.txt`, `explore.log.jsonl` i workspace (SQLite, bloby, `runs/`) są w artefakcie `demo-android-explore`.
+
+## 12. STEP-08 (ScreenContract i accessibility)
+
+- **`hierarchy` CLI** (`tapcue hierarchy --no-reinstall-driver`) jest źródłem snapshotu full zadania `AnalyzeScreen`. Atrybut `important-for-accessibility` (tylko Android, tylko w pełnej hierarchii) parsuje `TapCueParsers.ParseHierarchy` do `RawElement.ImportantForAccessibility`. Węzeł korzenia i pierwszy kontener okna nie mają atrybutów, więc dostają `null`. Nagrania Home (`recordings/`) mają ten atrybut na każdym węźle z klasą.
+- **`pressKey: Tab`** przez MCP `run` (szablon `- pressKey: Tab` + `waitForAnimationToEnd`, `check-syntax` per kształt jak każdy generowany flow). Fokus klawiatury odczytuje się z flagi `focused` w `inspect_screen` (MCP zachowuje `focused`, §3.2). Czy ta flaga odzwierciedla fokus klawiatury w aplikacji MAUI na emulatorze, to PoC architektury §14.2. Wynik jest w `docs/handovers/STEP-08.md` (job `android-explore`).
+- iOS: brak `Tab` (G-04) i brak typu elementu (G-03), więc role w kontrakcie iOS mają `roleLevel: inferred`.
+

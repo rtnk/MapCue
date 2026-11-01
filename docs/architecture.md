@@ -582,10 +582,78 @@ flowchart LR
 |---|---|---|---|
 | TalkBack (Android) | tak (`content-desc`, `text`, `class`, `important-for-accessibility` z pełnej hierarchii) | reguły na drzewie: brak etykiety na klikalnym, duplikaty, rozmiar celu (`inferred`: gęstość ekranu nieznana) | `unsupported` przez TapCue (G-05). Protokół manualny operatora z dowodem (P1). |
 | VoiceOver (iOS) | częściowo: `label`, `identifier`, `value`; rola `inferred` (G-03) | `unsupported` (brak `performAccessibilityAudit` w TapCue) | `unsupported` na symulatorze (CAP-0114: wymaga fizycznego urządzenia). Protokół manualny (P1/P2). |
-| Klawiatura Android | — | `pressKey: Tab` i obserwacja `focused` → graf fokusu **[PoC STEP-08: czy `focused` odzwierciedla fokus klawiatury]** | `automated` z interakcją. `assistiveVerified` tylko z udokumentowanym protokołem. |
+| Klawiatura Android | — | `pressKey: Tab` i obserwacja `focused` → graf fokusu **[PoC STEP-08: czy `focused` odzwierciedla fokus klawiatury; wynik w §14.3 i `docs/handovers/STEP-08.md`]** | `automated` z interakcją. `assistiveVerified` tylko z udokumentowanym protokołem. |
 | Klawiatura iOS | — | `unsupported` (G-04: brak Tab) | `unsupported` |
 
 Kolejność fokusu wyliczona z drzewa (czytanie od góry do dołu, od lewej do prawej) ma etykietę `predicted` / `unverified` (CAP-0115).
+
+### 14.3 Implementacja w STEP-08
+
+Migracja `0007`, schemat [`schemas/screen-contract.v1.schema.json`](../schemas/screen-contract.v1.schema.json) (`mapcue.screen-contract/1`), protokół operatora [`docs/a11y-manual-protocol.md`](a11y-manual-protocol.md).
+
+- **Przechwytywanie w runie** (`contracts` w konfiguracji, domyślnie wyłączone; `ExplorationEngine.Contracts.cs`):
+  - zadania powstają dopiero wtedy, gdy kontekst nie ma już zadań `ExploreAction`, więc eksplorowany graf nie zależy od nich (test: te same krawędzie z przechwytywaniem i bez);
+  - każdy stan widziany w kontekście, poza `loading`, dostaje zadanie `AnalyzeScreen`, a na Androidzie przy `keyboardFocus` także `AuditAccessibility`;
+  - klucze: `TaskKeys.AnalyzeScreen/AuditAccessibility` = `H(type, stateId, contextSignature, appBuildId, "screen-capture/1")`;
+  - kolejność: odległość od bieżącego stanu, potem stan; pełna hierarchia stanu przed jego próbą klawiatury.
+- **`AnalyzeScreen`:**
+  - dojście do stanu po krawędziach (jak `ExploreAction`), potem CLI `hierarchy` (`fidelity: full`, ADR-0002);
+  - zaraz po niej obserwacja fast, którą resolver musi rozpoznać jako ten sam stan;
+  - dopiero wtedy snapshot full jest zapisywany jako snapshot stanu (`ui_snapshots.fidelity = Full`) z dowodami;
+  - snapshot full nie przechodzi przez resolver, bo drzewo full różni się od fast (G-02) i mogłoby utworzyć nowy stan;
+  - `AnalyzeState` czyta tylko snapshoty fast;
+  - wynik to `screen_captures` (`Captured`, `Diverged`, `Unreachable`, `Failed`). Porażka nie blokuje zadania (`Failed` bez ponowienia), a kontrakt pokazuje wtedy `notTested`.
+- **`AuditAccessibility` (Android, PoC §14.2):**
+  - obserwacja fast musi rozpoznać stan;
+  - potem do `contracts.maxTabPresses` razy `pressKey: Tab`: nowy typ akcji `PressKey` tylko dla silnika, klucze z allowlisty `DeviceKeys` (tylko `Tab`), szablon `- pressKey: Tab` w `FlowYamlGenerator`; reasoner nie może go zaproponować;
+  - po każdym naciśnięciu obserwacja fast, z której brany jest element z flagą `focused`;
+  - koniec, gdy:
+    - fokus wraca do pierwszego elementu (`cycleClosed`);
+    - fokus nie zmienia się (`focusDidNotMove`);
+    - po 3 naciśnięciach nadal nie ma fokusu (`noFocusObserved`);
+    - aplikacja została opuszczona;
+    - akcja się nie udała;
+  - każde naciśnięcie to akcja urządzenia, liczona w `budgets.maxActions` (`RunCounters.KeyPresses`);
+  - dokument `mapcue.focus-probe/1` (kroki, elementy z fokusem, cele klawiatury, przyczyna końca) jest blobem z dowodem `FocusProbe`.
+- **Kontrakt (`ScreenContractBuilder`, tylko baza i bloby, bez zegara):**
+  - jeden kontrakt na ekran logiczny i grupę porównania (app, platforma, build, locale; jak w §5.7);
+  - warianty (stan × kontekst) mają `identityTokens` (`ScreenVariant.IdentityTokens`) i źródło snapshotu (`full`, a bez przechwycenia `fast`);
+  - elementy mają obecność per kontekst i stan, a `visibleWhen` to hipoteza guardu z porównania profili (`inferred`/`observed`/`refuted`);
+  - role na iOS mają `roleLevel: inferred` (G-03);
+  - kontrakt nie ma znaczników czasu, więc ten sam stan bazy daje ten sam `contentHash`;
+  - `contentHash` = SHA-256 zwartego JSON z `version` 0 i pustym hashem;
+  - `ScreenContractPublisher` waliduje kontrakt schematem, zapisuje zredagowany blob i nadaje nową wersję (`screen_contracts`) tylko przy zmianie hasha;
+  - plik: `screens/<screenKey>/<grp_…>/screen-contract.v<k>.json` (grupa jako krótki hash, bo jeden `screenKey` może mieć kilka buildów).
+- **Reguły drzewa** (poziom `inspected`, tylko na snapshotach full):
+  - `label.missing`: cel bez tekstu, opisu i podpowiedzi, także bez podpisanego potomka;
+  - `label.duplicate`;
+  - `a11y.hidden`: `important-for-accessibility=false` na celu;
+  - `target.small`: < 48 px; gęstość ekranu nieznana, więc rozmiar w dp jest `inferred`;
+  - wynik to „do sprawdzenia”, nigdy werdykt.
+  - **Odstępstwo od §14.2:** reguły na drzewie dla TalkBack są tu poziomem `inspected`, a nie `automated`. Drzewo nie mówi, co czytnik faktycznie ogłosi, a test DoD wymaga braku PASS z drzewa. Komórka `automated` TalkBack/VoiceOver to `unsupported` (G-05).
+- **Macierz** (schemat typuje komórkę per poziom; komórka `inspected` nie może mieć statusu `pass`):
+
+| Technologia | `inspected` | `automated` | `assistiveVerified` |
+|---|---|---|---|
+| TalkBack (Android) | `present` / `issues` / `notTested` (bez full) | `unsupported` (G-05) | `pass`/`fail` tylko z rekordu operatora, inaczej `notTested` |
+| VoiceOver (iOS) | `present` / `issues` (role `inferred`, G-03) | `unsupported` | jak wyżej; tylko fizyczne urządzenie (CAP-0114) |
+| Klawiatura (Android) | `unsupported` (kolejność z drzewa jest w `keyboard.predicted` jako `predicted`/`unverified`) | z próby Tab: `pass` tylko gdy cykl się zamknął i każdy cel dostał fokus we wszystkich wariantach; `fail` gdy cykl się zamknął bez jakiegoś celu (`keyboard.unreachable`); `unverified` bez obserwowalnego fokusu albo bez zamkniętego cyklu; `blocked` przy nieudanym przechwyceniu; `notTested` bez próby | rekord operatora |
+| Klawiatura (iOS) | `unsupported` | `unsupported` (G-04) | `unsupported` (rekord odrzucany) |
+| Technologia innej platformy | `unsupported` | `unsupported` | `unsupported` |
+
+- **`assistiveVerified`:**
+  - pochodzi tylko z `a11y_records` (`mapcue a11y record`, protokół `mapcue.a11y-protocol/1`, plik dowodu wymagany i redagowany);
+  - `pass` wymaga rekordu całego ekranu (`--property screen`) i braku rekordu `fail`;
+  - rekord `fail` zawsze wygrywa.
+- **CLI:**
+  - `mapcue contract build [--config|--workspace]`: buduje, wersjonuje, wypisuje linię kontraktu i macierz;
+  - `mapcue a11y record`;
+  - obie komendy biorą blokadę workspace i nie tworzą workspace bez bazy.
+- **Testy:**
+  - `ScreenContractEndToEndTests` (oba profile `FakeDemoProfiles`, fokus Tab w `FakeDevice`, iOS);
+  - `ScreenContractSchemaTests`, `ScreenContractStoreTests` (migracja 6 → 7), `ContractConfigTests`;
+  - generator `pressKey`, nagrania Home (`important-for-accessibility`, bounds, kolejność przewidywana);
+  - CLI; kontrola 6 w `compare-expected.py`.
 
 ## 15. Opcjonalne nagrania HTTP (CAP-0110, CAP-0111)
 
