@@ -17,7 +17,7 @@ Dokumenty: `docs/architecture.md`, `docs/tapcue-compatibility.md`, `docs/adr/`, 
 | 05 | Vertical slice crawler | P0 (MVP) | 02, 02B, 03, 04 | zmergowany (PR #8) |
 | 06 | Frontier scheduler | P0 (MVP) | 05 | zmergowany (PR #9) |
 | 07 | Profiles & variants | P0 (MVP) | 06 | zmergowany (PR #10; poprawka demo R-14: PR #11) |
-| 08 | Screen Contract & accessibility | kontrakt P0, a11y P1 | 07 | PR #12 otwarty (czeka na review i merge) |
+| 08 | Screen Contract & accessibility | kontrakt P0, a11y P1 | 07 | zmergowany (PR #12; poprawka próby klawiatury, R-06: PR #13) |
 | 09 | Recovery & operator handoff | P0 (MVP) | 06 (07 dla wariantów) | nie rozpoczęty |
 | 10 | Reports & TapCue export | P0 (MVP: coverage + eksport), diff buildów P1 | 09 | nie rozpoczęty |
 | 11 | Optional HTTP fixtures (DevFlow) | opcjonalne | 10 | nie rozpoczęty |

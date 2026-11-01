@@ -2,27 +2,29 @@
 
 ## Status i identyfikatory
 
-- Status: **DONE** (po poprawce z PR follow-up).
-  - Zakres ROADMAP STEP-08 zrealizowany. Kontrole lokalne, CI i demo na emulatorze: wyniki w tabeli niżej.
-  - PR #12 zmergowano przed poprawką bezpieczeństwa próby klawiatury. Na `main` (`bc07952`) próba Tab może aktywować element z fokusem, także akcje ryzykowne (R-06, szczegóły w „Ograniczenia”).
-  - Poprawka i ten handoff są w PR follow-up (`fix/step-08` na branchu sesji) i powinny trafić na `main` przed STEP-09.
-  - Wynik PoC klawiatury: fokus jest obserwowalny, ale kolejny Tab aktywuje element z fokusem, więc graf fokusu przez Tab jest `unverified`.
-- Branch: `claude/step-08-screen-contract-o7xzdp` (wyznaczony przez środowisko sesji zamiast `feat/step-08-screen-contract`)
+- Status: **DONE**.
+  - Zakres ROADMAP STEP-08 zrealizowany. Kontrole lokalne, CI i demo na emulatorze (runy 1–3) w tabeli niżej.
+  - PR #12 zmergowano przed poprawką bezpieczeństwa próby klawiatury (R-06). Poprawka weszła w PR #13 (`main` `be61ec7`) i run 3 na emulatorze ją potwierdza.
+  - Wynik PoC klawiatury: fokus jest obserwowalny, ale kolejny Tab aktywuje element z fokusem, więc graf fokusu przez Tab jest `unverified` albo `notTested`.
+- Branch: `claude/step-08-screen-contract-o7xzdp` (wyznaczony przez środowisko sesji zamiast `feat/step-08-screen-contract`). Po każdym merge branch był odtwarzany od aktualnego `main`.
 - PR URL i status (open / merged / not created):
   - <https://github.com/rtnk/MapCue/pull/12> (merged 2026-11-01 13:22, merge `bc07952`, head `68135bd`);
-  - PR follow-up z poprawką i tym handoffem: link w odpowiedzi agenta i w Checks (open, czeka na review i merge).
+  - <https://github.com/rtnk/MapCue/pull/13> follow-up z poprawką (merged 2026-11-01 13:52, merge `be61ec7`, head `7ed8e12`);
+  - wynik runu 3 dopisany w osobnym, małym PR dokumentacji.
 - Commit SHA:
   - kod `ad93fc3`;
   - demo `ed98a42`;
   - dokumentacja `2e17957`;
   - poprawka próby klawiatury (fałszywy cykl) `894aaf2`;
   - szkic handoffu `68135bd` (= head PR #12);
-  - bramka polityki i stop przy zmianie ekranu: `97b6da4` (follow-up, na `bc07952`).
+  - bramka polityki i stop przy zmianie ekranu: `97b6da4` (PR #13, na `bc07952`);
+  - handoff z runami 1–2: `7ed8e12` (= head PR #13).
 
-  Ten handoff jest w kolejnym commicie follow-up, więc aktualny head jest w PR follow-up.
+  Zapis runu 3 jest w kolejnym commicie (PR dokumentacji od `be61ec7`).
 - Base branch/SHA:
   - PR #12: `main` @ `6bf69ce2e118b675be782b17e3a1712fccb23e3d` (merge PR #11; PR #10 STEP-07 zmergowany jako `e65f136`; CI run 41301115329 i Demo app run 41301115370 `success`);
-  - follow-up: `main` @ `bc079528ae1abf1c001895251f83297896f8bb07` (merge PR #12; CI run 41310936878 `success`).
+  - PR #13: `main` @ `bc079528ae1abf1c001895251f83297896f8bb07` (merge PR #12; CI run 41310936878 `success`);
+  - zapis runu 3: `main` @ `be61ec7` (merge PR #13).
 - Data i środowisko: 2026-11-01. Lokalnie kontener Linux x86_64 (Ubuntu 24.04), .NET SDK 10.0.114 (`apt-get install dotnet-sdk-10.0` w sesji). Bez urządzenia, Android SDK i TapCue (R-09). Urządzenie: GitHub Actions `ubuntu-24.04`, emulator API 34 `google_apis` x86_64, TapCue 0.1.0.
 
 ## Zakres faktycznie wykonany
@@ -89,6 +91,12 @@
   - wyjątek: jedyny cel ekranu trzymający fokus to pełny cykl jednego elementu;
   - test regresji: `Focus_that_stops_moving_is_unverified_never_a_closed_cycle` (pułapka fokusu w `FakeDevice`).
 
+- **Poprawka po drugim runie na emulatorze (41309332696; PR #13, `97b6da4`, R-06):**
+  - kolejny Tab aktywował element z fokusem, w tym `investments.buy`;
+  - **bramka polityki:** `AuditAccessibility` działa tylko na stanie, którego każda akcja oceniona w kontekście jest `safe`/`navigational`; inaczej, albo bez żadnej oceny, przechwycenie `SkippedByPolicy` bez dojścia do stanu i bez naciśnięcia, a komórka klawiatury `notTested` z powodem;
+  - **stop przy zmianie ekranu:** po każdym naciśnięciu stan musi pozostać stanem próby, inaczej `screenChanged` (`unverified`, w `detail` element prawdopodobnie aktywowany); fokus z innego ekranu nie trafia do kolejności;
+  - `FakeDevice.TabActivatesFocusedElement` odtwarza zachowanie emulatora; test sprawdza, że żaden element ryzykowny nie jest aktywowany.
+
 ## Pliki / API / migracje
 
 - **Nowe:**
@@ -150,7 +158,7 @@
 | **Demo na emulatorze, run 1 (head `2e17957`)** | `demo-app.yml` job `android-explore`, run 41306424435: `run-explore.sh` → `explore --profile basic`, `--profile investor`, `status --profiles`, `contract build`, `compare-expected.py` | **PASS** (hard checks); `basic` 346 s (`Exhausted`, 25/25 przejść), `investor` 376 s (`Exhausted`, 33/33); 15/15 snapshotów full `Captured`, 15/15 prób klawiatury `Captured`; 8 kontraktów v1; TalkBack wszędzie `issues`/`unsupported`/`notTested`; VoiceOver `unsupported`; klawiatura: 4 ekrany `unverified`, 4 ekrany `fail` (**fałszywy fail**, błąd próby, poprawiony w `894aaf2`) | artefakt `demo-android-explore` (ID 13084385388) |
 | **Demo na emulatorze, run 2 (head `68135bd`, zawiera `894aaf2`)** | jak wyżej, Demo app run 41309332696 (CI run 41309332771 PASS) | **PASS** (hard checks); `basic` 412 s, `investor` 400 s, oba `Exhausted`, 25/25 i 33/33 przejść; 15/15 snapshotów full; klawiatura: 7 ekranów `unverified` (`focusDidNotMove`), Investments `fail` po fałszywym „cyklu” po otwarciu okna zakupu. **Ustalenie:** kolejność fokusu zawiera elementy innych ekranów (What's new `whatsnew.close > home.accounts > tab.home`; Investments `investments.buy > buttonPanel > button2`), więc kolejny Tab **aktywował** element z fokusem: zamknięcie What's new, nawigacja z Details, okno zakupu `investments.buy` (financial, dane syntetyczne, nic nie kupiono); fokus „stojący” na `scenario.empty`, `settings.notifications`, `verify.sendcode` pasuje do aktywacji bez zmiany ekranu. Znaleziska drzewa: wyłącznie `target.small` (przyciski 280×37 px, zakładki 73–99×23 px, gęstość nieznana) i `label.missing` (`scenario.empty`, `settings.notifications`) | log joba (tabele w raporcie `compare-expected.py`); artefakt `demo-android-explore` z runu 41309332696 |
 | Poprawka po runie 2: bramka polityki (próba tylko na stanach z akcjami `safe`/`navigational`, inaczej `SkippedByPolicy` bez dojścia do stanu i bez naciśnięcia) i stop przy zmianie ekranu (`screenChanged`, `unverified`) | `ScreenContractEndToEndTests.A_tab_that_activates_the_focused_element_never_reaches_a_risky_action_…` (`FakeDevice.TabActivatesFocusedElement` odtwarza emulator) i zaktualizowane testy macierzy, budżetu i braku fokusu | PASS; lokalnie 782 pass, 1 skip; mutacja (bramka wyłączona) wykryta: 5 FAIL | — |
-| **Demo na emulatorze, run 3 (follow-up, head z `97b6da4`)** | `demo-app.yml` job `android-explore` na PR follow-up | wynik w Checks PR follow-up (oczekiwane: Settings, Profile, Verify, Details, Investments `SkippedByPolicy`; Home, Accounts, What's new `unverified` przez `screenChanged`) | — |
+| **Demo na emulatorze, run 3 (PR #13, head `7ed8e12`)** | `demo-app.yml` job `android-explore`, Demo app run 41311706432 (CI run 41311706387 PASS) | **PASS** (hard checks); `basic` 348 s, `investor` 373 s, oba `Exhausted`; 8 kontraktów; **bramka:** Settings (StateChanging), Profile (AccountChange, StateChanging), Verify (AccountChange, Communication), Details (AccountChange), Investments (Financial) `SkippedByPolicy`, 0 naciśnięć; Home, What's new i Accounts kończą się `screenChanged` po 1–2 naciśnięciach (aktywacja `home.accounts`, `whatsnew.close`); w kolejności fokusu tylko elementy własnego ekranu, żaden element ryzykowny; klawiatura `automated`: 3 ekrany `unverified`, 5 `notTested`, żadnego `pass`/`fail`; TalkBack `issues`/`unsupported`/`notTested`, VoiceOver `unsupported` | log joba (tabele `compare-expected.py`) |
 | Demo na emulatorze lokalnie, artefakt workspace | — | NOT RUN: brak Android SDK i emulatora w sesji; pobranie artefaktu z Azure Blob odmówione przez proxy sesji (R-09), więc szczegóły pochodzą z logu joba | — |
 | iOS na urządzeniu lub symulatorze | — | NOT RUN: brak runnera macOS z odpowiednim Xcode (R-01, R-10); komórki iOS sprawdzone na `FakeDevice` | — |
 
@@ -161,12 +169,14 @@
   - **Kolejny Tab aktywuje element z fokusem** (runy 41306424435 i 41309332696; mechanizm w TapCue/Maestro, Androidzie czy MAUI nieustalony, wniosek z obserwacji). Pełnego grafu fokusu przez Tab nie da się więc zbudować, a wynik `automated` dla klawiatury to `unverified` albo `notTested` (pominięte przez politykę), nigdy `pass`.
   - Ticket do TapCue (właściciel): `pressKey` z gwarancją samego `KEYCODE_TAB`.
   - Rzeczywistą obsługę klawiatury aplikacji sprawdza tylko protokół manualny.
-- **Incydent bezpieczeństwa (R-06), naprawiony w follow-up:**
-  - PR #12 (na `main` od `bc07952`) uruchamia próbę Tab na każdym stanie, także z akcjami ryzykownymi.
+- **Incydent bezpieczeństwa (R-06), naprawiony w PR #13 (`be61ec7`):**
+  - PR #12 (na `main` od `bc07952` do `be61ec7`) uruchamiał próbę Tab na każdym stanie, także z akcjami ryzykownymi.
   - W runie 41309332696 Tab aktywował `investments.buy` (financial) i prawdopodobnie przełączniki (stateChanging) oraz `verify.sendcode` (communication).
   - Dane demo są syntetyczne i resetowane setup flow, więc nic realnego się nie stało. Wyrocznia nie wykryła tego, bo nie sprawdza akcji niebędących krawędziami.
   - Run Demo app na `main` po merge (41310936846) też wykonał taką próbę.
-  - **Do czasu merge follow-up nie uruchamiaj `contracts.keyboardFocus: true` na profilach z danymi innymi niż syntetyczne.**
+  - Run 3 potwierdza, że po poprawce próba nie dotyka stanów z akcjami ryzykownymi.
+  - **Ograniczenie, które zostaje:** bramka opiera się na ocenach akcji zaproponowanych przez reasoner. Element, którego reasoner nie zaproponował, nie ma oceny, więc stan z takim elementem ryzykownym przejdzie bramkę, jeśli pozostałe akcje są bezpieczne. Zalecenie: `contracts.keyboardFocus` tylko dla danych syntetycznych.
+  - Drobna nieścisłość z runu 3: Accounts zmienił ekran już po pierwszym Tab, bez obserwowanego fokusu. Status przechwycenia to wtedy `NoFocusObserved`, a `detail` mówi „no element reported focused” zamiast „screen changed”. Wynik `unverified` jest poprawny.
 - **Reguły drzewa na emulatorze (run 2):**
   - wyłącznie `target.small` (przyciski 280×37 px, zakładki 73–99×23 px; emulator API 34 o niskiej rozdzielczości, gęstość nieznana, próg 48 px to heurystyka);
   - `label.missing` dla dwóch przełączników bez etykiety (`scenario.empty`, `settings.notifications`; prawdziwy problem demo app, zgodnie z `expected-graph.md`).
@@ -183,16 +193,16 @@
 
 ## Stan roadmapy
 
-- STEP-00…07 i 02B: zmergowane. STEP-08: PR #12 zmergowany; poprawka (bramka polityki próby klawiatury) i handoff w PR follow-up.
+- STEP-00…08 i 02B: zmergowane (STEP-08: PR #12 i poprawka PR #13).
 - W `docs/ROADMAP.md` zaktualizowane:
   - statusy 07 i 08;
   - R-07 (realizacja: `unsupported`, `inspected` bez PASS, protokół manualny, PoC klawiatury);
   - macierz platform: kolumna A11y dla Android emulator.
-- Następny: STEP-09 (Recovery & operator handoff, zależy od 06, a od 07 dla wariantów). Start po merge PR follow-up STEP-08.
+- Następny: STEP-09 (Recovery & operator handoff, zależy od 06, a od 07 dla wariantów). Start po merge PR z zapisem runu 3 i zielonym CI na `main`.
 
 ## Warunki startu STEP-09
 
-- PR #12 i **PR follow-up STEP-08 (bramka polityki próby klawiatury)** zmergowane do `main`, CI (`CI`, `Demo app`) zielone na `main`, lokalny `main` zaktualizowany.
+- PR #12, PR #13 i PR z zapisem runu 3 zmergowane do `main`, CI (`CI`, `Demo app`) zielone na `main`, lokalny `main` zaktualizowany.
 - Kontrakty z tego etapu, na których kolejne etapy się opierają:
   - `IScreenContractRepository` (przechwycenia, wersje, rekordy);
   - `ScreenContractBuilder`/`Publisher` (raporty STEP-10 mogą czytać kontrakty);
@@ -204,7 +214,7 @@
 
 > Jesteś kolejnym agentem MapCue. Masz wykonać wyłącznie STEP-09: Recovery & operator handoff.
 > Najpierw przeczytaj AGENTS.md, README.md, docs/ROADMAP.md (sekcja STEP-09, rejestr ryzyk R-02, R-03, R-06, R-14 i wspólne DONE), docs/architecture.md (§5.3, §5.6, §5.7, §6, §13, §14.3), docs/tapcue-compatibility.md, ADR-0001, ADR-0002, ADR-0004, docs/handovers/STEP-08.md oraz kod: `src/MapCue.Application/Exploration/` (`ExplorationEngine`, `RecipeBuilder`, `FrontierScheduler`), `src/MapCue.Application/Ports/IStateStore.cs`, `src/MapCue.Cli/` (zaślepki `blocked`, `resume`), `tests/MapCue.EndToEnd.Tests/` (`RecoveryTests`, `ExplorationHarness`), `tests/MapCue.Testing/FakeDemoApp.cs`, a także `samples/MapCue.DemoApp/` (`expected-graph.md`, sekcja „Blokada”).
-> Zweryfikuj, że PR STEP-08 (<https://github.com/rtnk/MapCue/pull/12>) i PR follow-up STEP-08 (bramka polityki próby klawiatury, opisany w docs/handovers/STEP-08.md) są zmergowane, a `main` aktualny i z zielonym CI (`CI` i `Demo app`). Jeśli nie, zatrzymaj się i zgłoś to.
+> Zweryfikuj, że PR STEP-08 (<https://github.com/rtnk/MapCue/pull/12>, <https://github.com/rtnk/MapCue/pull/13>) są zmergowane, a `main` aktualny i z zielonym CI (`CI` i `Demo app`). Jeśli nie, zatrzymaj się i zgłoś to.
 > Następnie przedstaw krótki plan, zaimplementuj, przetestuj, utwórz jeden PR z branchem `feat/step-09-recovery` (albo branchem wyznaczonym przez środowisko sesji) i `docs/handovers/STEP-09.md` w tym samym PR. Nie rozpoczynaj STEP-10 i nie merguj PR.
 > Zakres (ROADMAP STEP-09): `Checkpoint`, deterministyczny `resume.md`, `mapcue blocked`, `mapcue resume <task> [--approve <category>]`, bezpieczny replay `ReachabilityRecipe` z wykrywaniem rozbieżności (`verifiedAt`), obsługa `OutcomeUnknown` według klasy ryzyka (otwarte pytania STEP-06), instrukcja operatora `docs/operator-guide.md`.
 > Testy: kill i restart w środku eksploracji na FakeDevice i na emulatorze; nieznany popup w demo app (Verify) daje `Blocked` z kompletnym `resume.md`; wznowienie bez danych z poprzedniej sesji LLM.
