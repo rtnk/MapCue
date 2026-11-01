@@ -130,6 +130,14 @@ public sealed partial class ExplorationEngine
             var kind = task.Type == TaskType.AnalyzeScreen ? ScreenCaptureKind.FullHierarchy : ScreenCaptureKind.KeyboardFocus;
             try
             {
+                if (kind == ScreenCaptureKind.KeyboardFocus && await KeyboardProbeRefusalAsync(task, ct) is { } refusal)
+                {
+                    // Nothing reaches the device: no navigation, no key press.
+                    await EndCaptureAsync(task, kind, ScreenCaptureStatus.SkippedByPolicy, null, null, [], refusal, ct);
+                    Progress($"keyboard   {task.FromStateId} skipped by policy: {refusal}");
+                    return;
+                }
+
                 if (!await NavigateToAsync(task.FromStateId!, ct))
                 {
                     await EndCaptureAsync(task, kind, ScreenCaptureStatus.Unreachable, null, null, [], "the state could not be reached over known edges after a reset", ct);
@@ -204,6 +212,26 @@ public sealed partial class ExplorationEngine
             Progress($"screen     {stateId} full hierarchy: {recorded.Normalized.Elements.Count} elements, {KeyboardTargets.Of(recorded.Normalized).Count} targets, evidence={evidenceIds.Count}");
         }
 
+        /// <summary>
+        /// Why the keyboard probe must not run on this state, or null. On the emulator (STEP-08, Demo app run 41309332696) a further Tab press
+        /// activated the focused element (What's new closed, the purchase dialog of investments.buy opened), so a key press is as risky as
+        /// tapping any keyboard target of the state: the probe runs only when every action assessed on the state in this context is safe or
+        /// navigational (R-06). A state without any assessment is refused too (its risk is unknown).
+        /// </summary>
+        private async Task<string?> KeyboardProbeRefusalAsync(FrontierTask task, CancellationToken ct)
+        {
+            var assessments = (await _e.Store.InTransactionAsync(uow => uow.Graph.ListCandidateAssessmentsAsync(task.ContextId, ct), ct))
+                .Where(a => a.StateId == task.FromStateId)
+                .ToList();
+            if (assessments.Count == 0)
+            {
+                return "no assessed action on this state: the risk of a key press activating an element is unknown";
+            }
+
+            var risky = assessments.Where(a => a.RiskClass is not (RiskClass.Safe or RiskClass.Navigational)).Select(a => a.RiskClass.ToString()).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+            return risky.Count == 0 ? null : $"a key press may activate the focused element and the state has actions of risk {string.Join(", ", risky)}";
+        }
+
         private async Task ProbeKeyboardFocusAsync(FrontierTask task, CancellationToken ct)
         {
             var stateId = task.FromStateId!;
@@ -251,6 +279,15 @@ public sealed partial class ExplorationEngine
                     steps.Add(new FocusProbeStep(press, execution.Outcome, [], recorded.Normalized.IdentityHash, recorded.Snapshot.RawSha256));
                     stop = FocusProbeStops.AppLeft;
                     last = null;
+                    break;
+                }
+
+                // A press that leaves the state (a Tab activated the focused element, STEP-08 emulator) ends the probe at once: what is
+                // focused on another screen says nothing about this one.
+                if (await ResolveAsync(recorded.Normalized, ct) != stateId)
+                {
+                    steps.Add(new FocusProbeStep(press, execution.Outcome, [], recorded.Normalized.IdentityHash, recorded.Snapshot.RawSha256));
+                    stop = FocusProbeStops.ScreenChanged;
                     break;
                 }
 
@@ -340,7 +377,7 @@ public sealed partial class ExplorationEngine
                 new ScreenCapture(ScreenCapture.IdOf(kind, task.FromStateId!, task.ContextId), kind, task.FromStateId!, task.ContextId, task.TaskId, status, snapshotId, artifactSha256, evidenceIds, detail is null ? null : _e.Redact(detail), now),
                 ct);
             var stored = await uow.Frontier.GetTaskAsync(task.TaskId, ct) ?? task;
-            var taskStatus = status is ScreenCaptureStatus.Captured or ScreenCaptureStatus.NoFocusObserved ? FrontierTaskStatus.Completed : FrontierTaskStatus.Failed;
+            var taskStatus = status is ScreenCaptureStatus.Captured or ScreenCaptureStatus.NoFocusObserved or ScreenCaptureStatus.SkippedByPolicy ? FrontierTaskStatus.Completed : FrontierTaskStatus.Failed;
             await uow.Frontier.UpdateTaskAsync(stored with { Status = taskStatus, LeaseOwner = null, LeaseExpiresAt = null, UpdatedAt = now }, ct);
             await AppendAsync(uow, CaptureEventTypes.ScreenCaptured, task.TaskId, new() { ["kind"] = kind.ToString(), ["stateId"] = task.FromStateId, ["status"] = status.ToString() }, ct);
         }
