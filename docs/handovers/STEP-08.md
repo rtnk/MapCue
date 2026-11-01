@@ -2,17 +2,27 @@
 
 ## Status i identyfikatory
 
-- Status: **DONE**. Zakres ROADMAP STEP-08 zrealizowany. Kontrole lokalne, CI i demo na emulatorze: wyniki w tabeli niżej. Wynik PoC klawiatury na emulatorze: fokus jest obserwowalny, ale Tab na demo app MAUI nie przechodzi przez wszystkie cele (`unverified`; szczegóły w „Ograniczenia”). Merge wykonuje Robert.
+- Status: **DONE** (po poprawce z PR follow-up).
+  - Zakres ROADMAP STEP-08 zrealizowany. Kontrole lokalne, CI i demo na emulatorze: wyniki w tabeli niżej.
+  - PR #12 zmergowano przed poprawką bezpieczeństwa próby klawiatury. Na `main` (`bc07952`) próba Tab może aktywować element z fokusem, także akcje ryzykowne (R-06, szczegóły w „Ograniczenia”).
+  - Poprawka i ten handoff są w PR follow-up (`fix/step-08` na branchu sesji) i powinny trafić na `main` przed STEP-09.
+  - Wynik PoC klawiatury: fokus jest obserwowalny, ale kolejny Tab aktywuje element z fokusem, więc graf fokusu przez Tab jest `unverified`.
 - Branch: `claude/step-08-screen-contract-o7xzdp` (wyznaczony przez środowisko sesji zamiast `feat/step-08-screen-contract`)
-- PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/12> (open, czeka na review i merge)
+- PR URL i status (open / merged / not created):
+  - <https://github.com/rtnk/MapCue/pull/12> (merged 2026-11-01 13:22, merge `bc07952`, head `68135bd`);
+  - PR follow-up z poprawką i tym handoffem: link w odpowiedzi agenta i w Checks (open, czeka na review i merge).
 - Commit SHA:
   - kod `ad93fc3`;
   - demo `ed98a42`;
   - dokumentacja `2e17957`;
-  - poprawka próby klawiatury `894aaf2`.
+  - poprawka próby klawiatury (fałszywy cykl) `894aaf2`;
+  - szkic handoffu `68135bd` (= head PR #12);
+  - bramka polityki i stop przy zmianie ekranu: `97b6da4` (follow-up, na `bc07952`).
 
-  Ten handoff jest w kolejnym commicie (tylko dokumenty), więc aktualny head jest w PR.
-- Base branch/SHA: `main` @ `6bf69ce2e118b675be782b17e3a1712fccb23e3d` (merge PR #11; PR #10 STEP-07 zmergowany jako `e65f136`; CI run 41301115329 i Demo app run 41301115370 `success`)
+  Ten handoff jest w kolejnym commicie follow-up, więc aktualny head jest w PR follow-up.
+- Base branch/SHA:
+  - PR #12: `main` @ `6bf69ce2e118b675be782b17e3a1712fccb23e3d` (merge PR #11; PR #10 STEP-07 zmergowany jako `e65f136`; CI run 41301115329 i Demo app run 41301115370 `success`);
+  - follow-up: `main` @ `bc079528ae1abf1c001895251f83297896f8bb07` (merge PR #12; CI run 41310936878 `success`).
 - Data i środowisko: 2026-11-01. Lokalnie kontener Linux x86_64 (Ubuntu 24.04), .NET SDK 10.0.114 (`apt-get install dotnet-sdk-10.0` w sesji). Bez urządzenia, Android SDK i TapCue (R-09). Urządzenie: GitHub Actions `ubuntu-24.04`, emulator API 34 `google_apis` x86_64, TapCue 0.1.0.
 
 ## Zakres faktycznie wykonany
@@ -90,7 +100,7 @@
   - `src/MapCue.Infrastructure.Sqlite/SqliteScreenContractRepository.cs`, `Migrations/0007_screen_contracts.sql`;
   - `src/MapCue.Cli/ContractCommands.cs`;
   - `docs/a11y-manual-protocol.md`;
-  - testy: `ScreenContractEndToEndTests` (10), `ScreenContractSchemaTests` (8), `ScreenContractStoreTests` (3), `ContractConfigTests` (5), test CLI, generator `pressKey`, nagrania Home.
+  - testy: `ScreenContractEndToEndTests` (11), `ScreenContractSchemaTests` (8), `ScreenContractStoreTests` (3), `ContractConfigTests` (5), test CLI, generator `pressKey`, nagrania Home.
 - **Zmienione:**
   - `ActionType.PressKey`, `DeviceKeys`;
   - `ValidatedDeviceAction.Key`;
@@ -104,7 +114,8 @@
   - `IUnitOfWork.Contracts` (`IScreenContractRepository`);
   - `ExplorationEngine` (partial, dispatch zadań, `AnalyzeState` tylko na snapshotach fast);
   - CLI (`MapCueCli`, `StatusCommand`, snapshot pomocy);
-  - `FakeDevice` (`PressKey Tab`, `focused`, `KeyboardFocusable`, `TrapsKeyboardFocus`, `ReportsKeyboardFocus`, liczniki);
+  - `FakeDevice` (`PressKey Tab`, `focused`, `KeyboardFocusable`, `TrapsKeyboardFocus`, `ReportsKeyboardFocus`, `TabActivatesFocusedElement`, `ActivatedByKey`, liczniki);
+  - `ScreenCaptureStatus.SkippedByPolicy`, `FocusProbeStops.ScreenChanged` (follow-up);
   - dokumentacja: architektura §14.2/§14.3, ROADMAP, README, `tapcue-compatibility.md` (G-04, G-05, §12), `expected-graph.md`, przykład konfiguracji, handoff STEP-07.
 - **Migracja `0007`** (przyrostowo od 6, testowana): `screen_captures`, `screen_contracts` (`UNIQUE(screen_id, group_key, version)`), `a11y_records`.
 - **Zmiany łamiące** (bez zewnętrznych konsumentów):
@@ -119,7 +130,7 @@
 | Gate: PR #10 zmergowany, `main` aktualny, CI i Demo app zielone | GitHub API: PR #10 merged; `main` = `6bf69ce`; runy 41301115329 (CI), 41301115370 (Demo app) `success` | PASS | — |
 | Baseline przed zmianami | `dotnet build MapCue.sln -c Release && dotnet test MapCue.sln -c Release --no-build` na `6bf69ce` / lokalnie | PASS (0 ostrzeżeń; 751 pass, 1 skip) | — |
 | Build Release (0 ostrzeżeń) | `dotnet build MapCue.sln -c Release` / lokalnie SDK 10.0.114 | PASS | — |
-| Testy | `dotnet test MapCue.sln -c Release --no-build` / lokalnie | PASS (781 pass, 1 skip: smoke CLI agenta bez zmiennej) | — |
+| Testy | `dotnet test MapCue.sln -c Release --no-build` / lokalnie | PASS (782 pass, 1 skip: smoke CLI agenta bez zmiennej) | — |
 | Format | `dotnet format MapCue.sln --verify-no-changes` | PASS | — |
 | Test architektury | `MapCue.Architecture.Tests` (17) | PASS | — |
 | Kontrakt per ekran demo app, oba profile (`FakeDemoProfiles`): 8 kontraktów, warianty per kontekst, `tab.investments` z `visibleWhen` `observed`/`investments`, 15 snapshotów full = 15 wariantów, schemat OK | `ScreenContractEndToEndTests.Both_profiles_give_one_contract_per_screen_…` | PASS | — |
@@ -137,39 +148,51 @@
 | Spójność demo app | `python3 -I samples/MapCue.DemoApp/check-consistency.py` | PASS | — |
 | CI na PR (head `2e17957`) | `ci.yml` run 41306424422, `tapcue-smoke.yml` run 41306424459, `demo-app.yml` run 41306424435 | PASS (wszystkie joby) | PR #12 → Checks |
 | **Demo na emulatorze, run 1 (head `2e17957`)** | `demo-app.yml` job `android-explore`, run 41306424435: `run-explore.sh` → `explore --profile basic`, `--profile investor`, `status --profiles`, `contract build`, `compare-expected.py` | **PASS** (hard checks); `basic` 346 s (`Exhausted`, 25/25 przejść), `investor` 376 s (`Exhausted`, 33/33); 15/15 snapshotów full `Captured`, 15/15 prób klawiatury `Captured`; 8 kontraktów v1; TalkBack wszędzie `issues`/`unsupported`/`notTested`; VoiceOver `unsupported`; klawiatura: 4 ekrany `unverified`, 4 ekrany `fail` (**fałszywy fail**, błąd próby, poprawiony w `894aaf2`) | artefakt `demo-android-explore` (ID 13084385388) |
-| **Demo na emulatorze, run 2 (head `894aaf2`)** | jak wyżej | RUN2_RESULT | RUN2_ARTIFACT |
+| **Demo na emulatorze, run 2 (head `68135bd`, zawiera `894aaf2`)** | jak wyżej, Demo app run 41309332696 (CI run 41309332771 PASS) | **PASS** (hard checks); `basic` 412 s, `investor` 400 s, oba `Exhausted`, 25/25 i 33/33 przejść; 15/15 snapshotów full; klawiatura: 7 ekranów `unverified` (`focusDidNotMove`), Investments `fail` po fałszywym „cyklu” po otwarciu okna zakupu. **Ustalenie:** kolejność fokusu zawiera elementy innych ekranów (What's new `whatsnew.close > home.accounts > tab.home`; Investments `investments.buy > buttonPanel > button2`), więc kolejny Tab **aktywował** element z fokusem: zamknięcie What's new, nawigacja z Details, okno zakupu `investments.buy` (financial, dane syntetyczne, nic nie kupiono); fokus „stojący” na `scenario.empty`, `settings.notifications`, `verify.sendcode` pasuje do aktywacji bez zmiany ekranu. Znaleziska drzewa: wyłącznie `target.small` (przyciski 280×37 px, zakładki 73–99×23 px, gęstość nieznana) i `label.missing` (`scenario.empty`, `settings.notifications`) | log joba (tabele w raporcie `compare-expected.py`); artefakt `demo-android-explore` z runu 41309332696 |
+| Poprawka po runie 2: bramka polityki (próba tylko na stanach z akcjami `safe`/`navigational`, inaczej `SkippedByPolicy` bez dojścia do stanu i bez naciśnięcia) i stop przy zmianie ekranu (`screenChanged`, `unverified`) | `ScreenContractEndToEndTests.A_tab_that_activates_the_focused_element_never_reaches_a_risky_action_…` (`FakeDevice.TabActivatesFocusedElement` odtwarza emulator) i zaktualizowane testy macierzy, budżetu i braku fokusu | PASS; lokalnie 782 pass, 1 skip; mutacja (bramka wyłączona) wykryta: 5 FAIL | — |
+| **Demo na emulatorze, run 3 (follow-up, head z `97b6da4`)** | `demo-app.yml` job `android-explore` na PR follow-up | wynik w Checks PR follow-up (oczekiwane: Settings, Profile, Verify, Details, Investments `SkippedByPolicy`; Home, Accounts, What's new `unverified` przez `screenChanged`) | — |
 | Demo na emulatorze lokalnie, artefakt workspace | — | NOT RUN: brak Android SDK i emulatora w sesji; pobranie artefaktu z Azure Blob odmówione przez proxy sesji (R-09), więc szczegóły pochodzą z logu joba | — |
 | iOS na urządzeniu lub symulatorze | — | NOT RUN: brak runnera macOS z odpowiednim Xcode (R-01, R-10); komórki iOS sprawdzone na `FakeDevice` | — |
 
 ## Ograniczenia, ryzyka, otwarte pytania
 
 - **PoC klawiatury (architektura §14.2) na emulatorze:**
-  - **Wynik:** flaga `focused` zmienia się po `pressKey Tab`, więc fokus klawiatury jest obserwowalny przez TapCue 0.1.0. Odwiedzonych było 1–6 elementów na ekran.
-  - Tab na demo app MAUI nie przechodzi jednak przez wszystkie cele. Fokus zatrzymuje się po 1–6 elementach (`focusDidNotMove`), a część elementów z fokusem to nie cele z drzewa (np. kontenery).
-  - Wynik `automated` dla klawiatury to więc `unverified`, a nie werdykt.
-  - Do ustalenia przez człowieka protokołem manualnym, czy to realna pułapka fokusu w aplikacji (MAUI Shell / `BottomNavigationView`), czy artefakt obserwacji: TapCue może raportować `focused` z opóźnieniem albo na rodzicu.
-- **Reguły drzewa na emulatorze dają dużo znalezisk** (np. Settings 12 na kontekst). Lista per reguła jest w raporcie runu 2 (tabela znalezisk). Prawdopodobnie dominuje `target.small`: emulator API 34 o niskiej rozdzielczości, a próg 48 px przy nieznanej gęstości jest heurystyką. Znaleziska są „do sprawdzenia” (`inspected`), nie werdyktem. Kalibracja progu (gęstość z `adb shell wm density` albo z TapCue) to pytanie na kolejny etap.
+  - **Wynik:** flaga `focused` zmienia się po pierwszym `pressKey Tab`, więc fokus jest obserwowalny przez TapCue 0.1.0.
+  - **Kolejny Tab aktywuje element z fokusem** (runy 41306424435 i 41309332696; mechanizm w TapCue/Maestro, Androidzie czy MAUI nieustalony, wniosek z obserwacji). Pełnego grafu fokusu przez Tab nie da się więc zbudować, a wynik `automated` dla klawiatury to `unverified` albo `notTested` (pominięte przez politykę), nigdy `pass`.
+  - Ticket do TapCue (właściciel): `pressKey` z gwarancją samego `KEYCODE_TAB`.
+  - Rzeczywistą obsługę klawiatury aplikacji sprawdza tylko protokół manualny.
+- **Incydent bezpieczeństwa (R-06), naprawiony w follow-up:**
+  - PR #12 (na `main` od `bc07952`) uruchamia próbę Tab na każdym stanie, także z akcjami ryzykownymi.
+  - W runie 41309332696 Tab aktywował `investments.buy` (financial) i prawdopodobnie przełączniki (stateChanging) oraz `verify.sendcode` (communication).
+  - Dane demo są syntetyczne i resetowane setup flow, więc nic realnego się nie stało. Wyrocznia nie wykryła tego, bo nie sprawdza akcji niebędących krawędziami.
+  - Run Demo app na `main` po merge (41310936846) też wykonał taką próbę.
+  - **Do czasu merge follow-up nie uruchamiaj `contracts.keyboardFocus: true` na profilach z danymi innymi niż syntetyczne.**
+- **Reguły drzewa na emulatorze (run 2):**
+  - wyłącznie `target.small` (przyciski 280×37 px, zakładki 73–99×23 px; emulator API 34 o niskiej rozdzielczości, gęstość nieznana, próg 48 px to heurystyka);
+  - `label.missing` dla dwóch przełączników bez etykiety (`scenario.empty`, `settings.notifications`; prawdziwy problem demo app, zgodnie z `expected-graph.md`).
+
+  Znaleziska to „do sprawdzenia” (`inspected`), nie werdykt. Kalibracja progu (gęstość z `adb shell wm density` albo z TapCue) to pytanie do Roberta.
 - **Reguły drzewa dla TalkBack to poziom `inspected`, nie `automated`** (odstępstwo od tabeli §14.2, opisane w §14.3): drzewo nie mówi, co ogłosi czytnik, a DoD wymaga braku PASS z drzewa.
 - **Snapshoty kroków próby klawiatury** (bloby surowe i znormalizowane) są wskazane tylko z dokumentu próby, nie z tabeli `evidence`. Przyszłe `mapcue gc` musi je traktować jako osiągalne przez dokument `FocusProbe`.
 - **Przechwytywanie wydłuża demo:** `basic` 211 s → 346 s, `investor` 227 s → 376 s. Każde naciśnięcie Tab to jedno `run` MCP.
 - **Rekordy operatora** są idempotentne: ten sam ekran, kontekst, technologia, element, właściwość, wynik i dowód dają ten sam identyfikator. Nie ma komendy do wycofania rekordu (P1).
 - **Pytania do Roberta:**
   1. czy `target.small` ma pozostać w regułach przy nieznanej gęstości, czy wymagać gęstości urządzenia (wtedy `notTested` bez niej);
-  2. czy próbę klawiatury rozszerzyć o Shift+Tab i strzałki (D-pad), skoro sam Tab nie przechodzi przez MAUI Shell;
+  2. czy próbę klawiatury zostawić jako PoC (`unverified`), wyłączyć domyślnie w demo, czy zgłosić ticket do TapCue (`pressKey` aktywuje element z fokusem) i wrócić do niej po poprawce;
   3. otwarte pytania STEP-07 (`--all-profiles`, `profileVariantMaxDelta`) i STEP-06 pozostają.
 
 ## Stan roadmapy
 
-- STEP-00…07 i 02B: zmergowane. STEP-08: PR #12 otwarty.
+- STEP-00…07 i 02B: zmergowane. STEP-08: PR #12 zmergowany; poprawka (bramka polityki próby klawiatury) i handoff w PR follow-up.
 - W `docs/ROADMAP.md` zaktualizowane:
   - statusy 07 i 08;
   - R-07 (realizacja: `unsupported`, `inspected` bez PASS, protokół manualny, PoC klawiatury);
   - macierz platform: kolumna A11y dla Android emulator.
-- Następny: STEP-09 (Recovery & operator handoff, zależy od 06, a od 07 dla wariantów). Start po merge tego PR.
+- Następny: STEP-09 (Recovery & operator handoff, zależy od 06, a od 07 dla wariantów). Start po merge PR follow-up STEP-08.
 
 ## Warunki startu STEP-09
 
-- PR STEP-08 **zmergowany** do `main`, CI (`CI`, `Demo app`) zielone na `main`, lokalny `main` zaktualizowany.
+- PR #12 i **PR follow-up STEP-08 (bramka polityki próby klawiatury)** zmergowane do `main`, CI (`CI`, `Demo app`) zielone na `main`, lokalny `main` zaktualizowany.
 - Kontrakty z tego etapu, na których kolejne etapy się opierają:
   - `IScreenContractRepository` (przechwycenia, wersje, rekordy);
   - `ScreenContractBuilder`/`Publisher` (raporty STEP-10 mogą czytać kontrakty);
@@ -181,7 +204,7 @@
 
 > Jesteś kolejnym agentem MapCue. Masz wykonać wyłącznie STEP-09: Recovery & operator handoff.
 > Najpierw przeczytaj AGENTS.md, README.md, docs/ROADMAP.md (sekcja STEP-09, rejestr ryzyk R-02, R-03, R-06, R-14 i wspólne DONE), docs/architecture.md (§5.3, §5.6, §5.7, §6, §13, §14.3), docs/tapcue-compatibility.md, ADR-0001, ADR-0002, ADR-0004, docs/handovers/STEP-08.md oraz kod: `src/MapCue.Application/Exploration/` (`ExplorationEngine`, `RecipeBuilder`, `FrontierScheduler`), `src/MapCue.Application/Ports/IStateStore.cs`, `src/MapCue.Cli/` (zaślepki `blocked`, `resume`), `tests/MapCue.EndToEnd.Tests/` (`RecoveryTests`, `ExplorationHarness`), `tests/MapCue.Testing/FakeDemoApp.cs`, a także `samples/MapCue.DemoApp/` (`expected-graph.md`, sekcja „Blokada”).
-> Zweryfikuj, że PR STEP-08 (<https://github.com/rtnk/MapCue/pull/12>) jest zmergowany, a `main` aktualny i z zielonym CI (`CI` i `Demo app`). Jeśli nie, zatrzymaj się i zgłoś to.
+> Zweryfikuj, że PR STEP-08 (<https://github.com/rtnk/MapCue/pull/12>) i PR follow-up STEP-08 (bramka polityki próby klawiatury, opisany w docs/handovers/STEP-08.md) są zmergowane, a `main` aktualny i z zielonym CI (`CI` i `Demo app`). Jeśli nie, zatrzymaj się i zgłoś to.
 > Następnie przedstaw krótki plan, zaimplementuj, przetestuj, utwórz jeden PR z branchem `feat/step-09-recovery` (albo branchem wyznaczonym przez środowisko sesji) i `docs/handovers/STEP-09.md` w tym samym PR. Nie rozpoczynaj STEP-10 i nie merguj PR.
 > Zakres (ROADMAP STEP-09): `Checkpoint`, deterministyczny `resume.md`, `mapcue blocked`, `mapcue resume <task> [--approve <category>]`, bezpieczny replay `ReachabilityRecipe` z wykrywaniem rozbieżności (`verifiedAt`), obsługa `OutcomeUnknown` według klasy ryzyka (otwarte pytania STEP-06), instrukcja operatora `docs/operator-guide.md`.
 > Testy: kill i restart w środku eksploracji na FakeDevice i na emulatorze; nieznany popup w demo app (Verify) daje `Blocked` z kompletnym `resume.md`; wznowienie bez danych z poprzedniej sesji LLM.
