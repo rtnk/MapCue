@@ -9,6 +9,7 @@
   <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\samples\MapCue.DemoApp\recordings\*.hierarchy.json" Link="DemoRecordings\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\MapCue.DemoApp\.tapcue\*.yaml" Link="DemoFlows\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FsCheck.Xunit" />

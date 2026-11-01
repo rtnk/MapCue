@@ -41,4 +41,9 @@ cat "$OUT/compare.md"
 { printf '%s\n' "$summary"; cat "$OUT/compare.md"; echo; echo '## mapcue status --profiles'; echo; echo '```'; cat "$OUT/status.txt"; echo '```'; } > "$OUT/report.md"
 cp -r .mapcue-demo "$OUT/workspace"
 tail -n 30 "$OUT/explore-basic.log.jsonl" "$OUT/explore-investor.log.jsonl"
+if [ "$explore" -ne 0 ]; then
+  # The setup flows run through `tapcue test`; the end of the newest TapCue logs goes to the job log (artifacts may be unreachable).
+  find .mapcue-demo/tmp/tapcue -name maestro.log -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n 2 | cut -d' ' -f2- |
+    while read -r log; do echo "--- $log"; tail -n 60 "$log"; done
+fi
 [ "$explore" -eq 0 ] && [ "$compare" -eq 0 ]

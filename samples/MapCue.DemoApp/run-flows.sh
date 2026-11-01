@@ -32,6 +32,10 @@ for name in setup-basic setup-investor setup-basic-empty tour-basic tour-investo
   echo "| \`$name\` | $result | $(( $(date +%s) - start )) |" >> "$report"
   echo "== $name: $result"
   tail -n 40 "$OUT/$name.log"
+  if [ "$result" = FAIL ]; then
+    # Artifact storage may be unreachable from the agent sandbox: the end of TapCue's own log goes to the job log too.
+    find "$OUT/$name" -name maestro.log -print 2>/dev/null | sort | while read -r log; do echo "--- $log"; tail -n 60 "$log"; done
+  fi
   case "$name" in
     setup-basic|setup-investor)
       "$TAPCUE" --device "$DEVICE" hierarchy --no-reinstall-driver > "$OUT/hierarchy-$name.txt" 2> "$OUT/hierarchy-$name.stderr" || true

@@ -973,7 +973,8 @@ public sealed class ExplorationEngine
                 if (run.Outcome != ActionOutcome.Succeeded)
                 {
                     await AppendEventAsync(RunEventTypes.AppReset, _run.RunId, new() { ["outcome"] = run.Outcome.ToString(), ["error"] = run.ErrorKind.ToString() }, ct);
-                    Progress($"reset      setup flow {run.Outcome} ({run.ErrorKind})");
+                    // The device's own failure text (first line, shortened, redacted by Progress) makes a CI log diagnosable without artifacts.
+                    Progress($"reset      setup flow {run.Outcome} ({run.ErrorKind}){FailureSuffix(run.Detail)}");
                     return null;
                 }
             }
@@ -1225,6 +1226,21 @@ public sealed class ExplorationEngine
             uow.Events.AppendAsync(_e.Ids.NewId("evt"), type, _e.Clock.UtcNow, _context?.ContextId, subjectId, GraphJson.Serialize(payload), ct);
 
         private void Progress(string line) => _o.Progress?.Invoke(_e.Redact(line));
+
+        /// <summary>": first line of the detail" (at most <see cref="MaxProgressDetail"/> characters, control characters removed), or empty.</summary>
+        private static string FailureSuffix(string? detail)
+        {
+            var line = detail?.Split('\n', 2)[0].Trim();
+            if (string.IsNullOrEmpty(line))
+            {
+                return string.Empty;
+            }
+
+            line = new string(line.Where(c => !char.IsControl(c)).ToArray());
+            return ": " + (line.Length > MaxProgressDetail ? line[..MaxProgressDetail] + "…" : line);
+        }
+
+        private const int MaxProgressDetail = 400;
     }
 }
 

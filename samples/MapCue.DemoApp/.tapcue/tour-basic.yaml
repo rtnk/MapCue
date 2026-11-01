@@ -2,12 +2,17 @@
 # exploration can take, plus the blocker. Not a setup flow; it never confirms a risky action.
 appId: com.mapcue.demoapp
 ---
-- launchApp:
-    clearState: true
-- extendedWaitUntil:
-    visible:
-      id: "(.*/)?screen.profile"
-    timeout: 30000
+# Clean start to the profile picker. On the CI emulator the cold start after clearState sometimes never reaches the picker
+# (Demo app run 41252379887: 30 s without screen.profile); the reset is idempotent and safe, so it is retried (R-14).
+- retry:
+    maxRetries: 2
+    commands:
+      - launchApp:
+          clearState: true
+      - extendedWaitUntil:
+          visible:
+            id: "(.*/)?screen.profile"
+          timeout: 30000
 - tapOn:
     id: "(.*/)?profile.basic"
 - extendedWaitUntil:
