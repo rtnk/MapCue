@@ -32,6 +32,15 @@ public enum ArtifactKind
     ToolOutput,
     Flow,
     Report,
+
+    /// <summary>Keyboard focus probe of a state (STEP-08, <c>mapcue.focus-probe/1</c>).</summary>
+    FocusProbe,
+
+    /// <summary>Evidence file of a manual accessibility record by the operator (STEP-08, <c>mapcue a11y record</c>).</summary>
+    OperatorRecord,
+
+    /// <summary>A screen contract version (STEP-08, <c>mapcue.screen-contract/1</c>).</summary>
+    ScreenContract,
 }
 
 /// <summary>Reference to a stored blob; <see cref="Sha256"/> is <c>sha256:&lt;hex&gt;</c> of the stored (redacted) bytes.</summary>

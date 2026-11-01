@@ -2,12 +2,14 @@
 
 MapCue (nazwa robocza, TOOL-009 „MobileGraph Explorer”) to planowane narzędzie CLI w .NET 10. Ma deterministycznie eksplorować aplikacje mobilne (Android/iOS) przez [TapCue](https://github.com/rtnk/TapCue). Buduje trwały graf ekranów, stanów i wariantów profili, kontrakty ekranów z macierzą dostępności, a zweryfikowane ścieżki eksportuje jako flow YAML TapCue.
 
-**Stan:** STEP-07 (profile i warianty). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0 i `mapcue doctor`. Od STEP-03 jest model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Od STEP-05 działa eksploracja: `mapcue explore` (preflight → pętla `AnalyzeState`/`ExploreAction` → zakończenie, frontier w SQLite, artefakty prób) i `mapcue status`. Od STEP-06 frontier ma lease i claim zadań, dzierżawę urządzenia, dziennik faz próby, rekoncyliację po przerwanym runie, kolejność według lokalności, ryzyka, nowości i głębokości, budżety per run i `representedBy` dla wierszy list. Od STEP-07 dochodzą profile i warianty:
+**Stan:** STEP-08 (kontrakty ekranów i accessibility). Jest szkielet solucji .NET 10, porty, walidacja konfiguracji, redakcja logów, adapter `IDeviceAutomation` przez publiczne MCP/CLI TapCue 0.1.0 i `mapcue doctor`. Od STEP-03 jest model grafu ekranów (normalizacja snapshotu, fingerprint, resolver tożsamości), SQLite z migracjami, content-addressed artefakty z redakcją i narzędzie testowe `mapcue graph import`. Od STEP-04 jest kontrakt z agentem (schematy w `schemas/`), walidator odpowiedzi (schemat → stale → semantyka → ryzyko → typowana akcja), regułowy klasyfikator ryzyka, `PolicyGate`, budżety i reasonery `DeterministicFakeReasoner`, `RuleBasedReasoner` (bez LLM) oraz `CliAgentReasoner` (`claude -p`, domyślnie w kontenerze). Od STEP-05 działa eksploracja: `mapcue explore` (preflight → pętla `AnalyzeState`/`ExploreAction` → zakończenie, frontier w SQLite, artefakty prób) i `mapcue status`. Od STEP-06 frontier ma lease i claim zadań, dzierżawę urządzenia, dziennik faz próby, rekoncyliację po przerwanym runie, kolejność według lokalności, ryzyka, nowości i głębokości, budżety per run i `representedBy` dla wierszy list. Od STEP-07 dochodzą profile i warianty:
 - profile w YAML mają `scenario`, `locale` i `switchElements`;
 - run domyślnie odmawia zmiany profilu;
 - rozpoznawane są warianty profilu na wspólnych ekranach;
 - ocena kandydatów i recipes są per kontekst;
 - porównanie profili (macierz pokrycia, klasy równoważności, hipotezy guardów) pokazuje `mapcue status --profiles`.
+
+Od STEP-08 są kontrakty ekranów (`mapcue.screen-contract/1`) z macierzą accessibility TalkBack/VoiceOver/Klawiatura i poziomami dowodu, `mapcue contract build` i `mapcue a11y record`.
 
 Pozostałe komendy (`blocked`, `resume`, `report`, `export`, `diff`) to zaślepki. Od STEP-02B jest aplikacja kontrolna MAUI `samples/MapCue.DemoApp` (cel eksploracji, poza `MapCue.sln`).
 
@@ -77,6 +79,27 @@ dotnet run --project src/MapCue.Cli -- status --config mapcue.yaml --profiles   
 - **Guard:** element nazwany jak capability (`tab.investments` ↔ `investments`) jest `inferred` po jednym profilu, a `observed` dopiero wtedy, gdy ten sam ekran widziano bez niego w profilu bez tej capability.
 
 Demo na emulatorze: [`samples/MapCue.DemoApp/mapcue.demo.yaml`](samples/MapCue.DemoApp/mapcue.demo.yaml), `run-explore.sh` (profile `basic` i `investor`) i porównanie każdego kontekstu z wyrocznią `compare-expected.py` (job `android-explore` w `.github/workflows/demo-app.yml`).
+
+## Kontrakty ekranów i accessibility (STEP-08)
+
+```bash
+dotnet run --project src/MapCue.Cli -- explore --config mapcue.yaml --profile basic    # z sekcją contracts: przechwytuje każdy stan
+dotnet run --project src/MapCue.Cli -- contract build --config mapcue.yaml             # screens/<screenKey>/<grp_…>/screen-contract.v<k>.json
+dotnet run --project src/MapCue.Cli -- a11y record --config mapcue.yaml --screen <screenKey> --profile basic \
+  --technology talkback --result pass --evidence transkrypt.txt --operator qa-1 --device "Pixel 8, Android 15, TalkBack 15.0"
+```
+
+- **Przechwytywanie** (`contracts.analyzeScreens`, `contracts.keyboardFocus`, `contracts.maxTabPresses`; domyślnie wyłączone): po eksploracji kontekstu każdy stan dostaje pełną hierarchię (`AnalyzeScreen`, CLI `hierarchy`), a na Androidzie próbę fokusu klawiatury (`AuditAccessibility`: `pressKey Tab` i flaga `focused`, PoC). Każde naciśnięcie to akcja w `budgets.maxActions`. Eksplorowany graf się od tego nie zmienia.
+- **Kontrakt** (schemat [`schemas/screen-contract.v1.schema.json`](schemas/screen-contract.v1.schema.json)):
+  - jeden kontrakt na ekran i grupę (app, platforma, build, locale);
+  - stany, konteksty, elementy z obecnością per kontekst i `visibleWhen` (hipoteza guardu), warianty z `identityTokens`;
+  - macierz a11y, znaleziska, rekordy operatora, kolejność fokusu przewidywana (`predicted`/`unverified`) i obserwowana (`automated`).
+- **Wersjonowanie:** nowa wersja tylko przy zmianie `contentHash`.
+- **Poziomy dowodu** (architektura §14):
+  - z drzewa nigdy nie ma PASS (`inspected`: `present`/`issues`);
+  - TalkBack/VoiceOver `automated` = `unsupported` (G-05);
+  - klawiatura na iOS = `unsupported` (G-04);
+  - `assistiveVerified` tylko z protokołu manualnego: [`docs/a11y-manual-protocol.md`](docs/a11y-manual-protocol.md).
 
 ## TapCue i `mapcue doctor`
 

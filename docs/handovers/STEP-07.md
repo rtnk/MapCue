@@ -4,7 +4,7 @@
 
 - Status: **DONE**. Zakres ROADMAP STEP-07 zrealizowany, kontrole lokalne, CI i demo dwóch profili na emulatorze PASS (run 41207480514). Merge wykonuje Robert.
 - Branch: `feat/step-07-profiles-variants` (nazwa z promptu etapu)
-- PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/10> (open, czeka na review i merge)
+- PR URL i status (open / merged / not created): <https://github.com/rtnk/MapCue/pull/10> (merged 2026-10-31, merge `e65f136`; po nim poprawka R-14 w PR #11, `main` = `6bf69ce`)
 - Commit SHA: kod `346b530`, dokumentacja `618049a`, handoff `2b572d7`, diagnostyka `f7a6b29`, fingerprint v3 `11aa157` (CI PASS). Ten zapis wyników jest w kolejnym commicie (tylko dokumenty), więc aktualny head jest w PR.
 - Base branch/SHA: `main` @ `e07651b0dd55d91cadb673d384cb21d0fba87b7c` (merge PR #9; CI run 40918179871 success, Demo app run 40918179698 success)
 - Data i środowisko: 2026-10-31. Lokalnie kontener Linux x86_64 (Ubuntu 24.04), .NET SDK 10.0.114 (`apt-get install dotnet-sdk-10.0` w sesji). Bez urządzenia, Android SDK i TapCue (R-09).

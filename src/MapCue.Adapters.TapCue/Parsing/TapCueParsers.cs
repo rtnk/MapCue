@@ -193,7 +193,13 @@ public static partial class TapCueParsers
             Checked: Flag(node, "checked", false),
             Focused: Flag(node, "focused", false),
             Selected: Flag(node, "selected", false),
-            Depth: depth));
+            Depth: depth,
+            ImportantForAccessibility: Str(attributes, "important-for-accessibility") switch
+            {
+                "true" => true,
+                "false" => false,
+                _ => null,
+            }));
         foreach (var child in (node["children"] as JsonArray) ?? [])
         {
             if (child is JsonObject c)

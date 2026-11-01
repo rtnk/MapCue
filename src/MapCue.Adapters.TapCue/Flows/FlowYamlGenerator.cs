@@ -80,6 +80,16 @@ public sealed partial class FlowYamlGenerator
                 shape = "launchApp";
                 body.Append("- launchApp\n");
                 break;
+            case ActionType.PressKey:
+                // Only allowlisted keys (STEP-08: Tab for the keyboard focus probe); the key name is a fixed token, never free text.
+                if (action.Key is not { } key || !DeviceKeys.Allowed.Contains(key))
+                {
+                    throw new FlowGenerationException("pressKey needs an allowlisted key.");
+                }
+
+                shape = "pressKey:" + key;
+                body.Append("- pressKey: ").Append(key).Append('\n');
+                break;
             case ActionType.WaitForAnimationToEnd:
                 // The settle step below is the whole flow.
                 shape = "waitForAnimationToEnd";

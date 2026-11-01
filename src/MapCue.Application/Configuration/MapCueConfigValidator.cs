@@ -39,10 +39,14 @@ public static partial class MapCueConfigValidator
         var tapCue = ValidateTapCue(document.Tapcue, errors);
         var policy = ValidatePolicy(document.Policy, errors);
         var identity = ValidateIdentity(document.Identity, errors);
+        var contracts = new ContractSettings(
+            document.Contracts?.AnalyzeScreens ?? ContractSettings.Default.AnalyzeScreens,
+            document.Contracts?.KeyboardFocus ?? ContractSettings.Default.KeyboardFocus,
+            Int(document.Contracts?.MaxTabPresses, ContractSettings.Default.MaxTabPresses, 1, 50, "contracts.maxTabPresses", errors));
 
         return errors.Count > 0
             ? new(null, errors)
-            : new(new MapCueSettings(workspace, allowlist, budgets, agent, profiles, tapCue) { Policy = policy, Identity = identity }, errors);
+            : new(new MapCueSettings(workspace, allowlist, budgets, agent, profiles, tapCue) { Policy = policy, Identity = identity, Contracts = contracts }, errors);
     }
 
     private static AllowlistSettings ValidateAllowlist(AllowlistDocument? doc, List<ConfigError> errors)

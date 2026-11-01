@@ -56,6 +56,20 @@ public sealed record FakeElement(string ResourceId, string Text, string? TargetS
     public int Depth { get; init; }
 
     public bool Scrollable { get; init; }
+
+    /// <summary>Whether <c>Tab</c> can focus the element (default: clickable elements). STEP-08 keyboard focus probe.</summary>
+    public bool? KeyboardFocusable { get; init; }
+
+    /// <summary>Bounds reported for the element (<c>[l,t][r,b]</c>), or none.</summary>
+    public string? Bounds { get; init; }
+
+    /// <summary>Android <c>important-for-accessibility</c> as the full hierarchy reports it; null = not reported.</summary>
+    public bool? ImportantForAccessibility { get; init; }
+
+    /// <summary>Once focused, <c>Tab</c> leaves the focus on this element (a keyboard trap, as seen on the emulator in STEP-08).</summary>
+    public bool TrapsKeyboardFocus { get; init; }
+
+    public bool IsKeyboardFocusable => KeyboardFocusable ?? Clickable;
 }
 
 /// <summary>
@@ -70,6 +84,12 @@ public sealed record FakeAppModel(string AppId, string StartScreenId, IReadOnlyL
 
     /// <summary>Setup screen by flow file name (e.g. <c>setup-investor.yaml</c>); other flows land on <see cref="SetupScreenId"/>.</summary>
     public IReadOnlyDictionary<string, string> SetupScreens { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whether observations report the keyboard focus (<c>focused</c>) after <c>pressKey Tab</c> (STEP-08). False models a platform or app
+    /// where focus is not observable this way.
+    /// </summary>
+    public bool ReportsKeyboardFocus { get; init; } = true;
 
     public FakeScreen Screen(string id) =>
         Screens.FirstOrDefault(s => s.Id == id) ?? throw new KeyNotFoundException($"Unknown fake screen '{id}'.");
@@ -89,6 +109,7 @@ public sealed class FakeDevice : IDeviceAutomation
     private readonly List<ValidatedDeviceAction> _executed = [];
     private readonly List<string> _flows = [];
     private int _observationsOnScreen;
+    private int _focusIndex = -1;
 
     public FakeDevice(FakeAppModel app, IClock clock, string deviceId = "fake-emulator-1", Platform platform = Platform.Android)
     {
@@ -111,6 +132,12 @@ public sealed class FakeDevice : IDeviceAutomation
 
     /// <summary>Number of observations served.</summary>
     public int Observations { get; private set; }
+
+    /// <summary>Number of full-fidelity observations (CLI <c>hierarchy</c>) served (STEP-08).</summary>
+    public int FullObservations { get; private set; }
+
+    /// <summary>Keys pressed (<c>pressKey</c>, STEP-08).</summary>
+    public int KeyPresses { get; private set; }
 
     /// <summary>When set, <see cref="ExecuteAsync"/> returns this outcome for actions on that resource id (fault injection).</summary>
     public Dictionary<string, ActionOutcome> Faults { get; } = new(StringComparer.Ordinal);
@@ -154,11 +181,29 @@ public sealed class FakeDevice : IDeviceAutomation
             screen = _app.Screen(CurrentScreenId);
         }
 
+        var focused = FocusedElement(screen);
+        var full = request.Fidelity == ObservationFidelity.Full;
         var elements = screen.Elements
             .Where(e => !HiddenElements.Contains(e.ResourceId))
-            .Select(e => new RawElement(string.IsNullOrEmpty(e.ResourceId) ? null : e.ResourceId, e.Text, e.AccessibilityText, e.ClassName, Clickable: e.Clickable, Enabled: true, Scrollable: e.Scrollable, Depth: e.Depth))
+            .Select(e => new RawElement(
+                string.IsNullOrEmpty(e.ResourceId) ? null : e.ResourceId,
+                e.Text,
+                e.AccessibilityText,
+                e.ClassName,
+                Clickable: e.Clickable,
+                Enabled: true,
+                Bounds: e.Bounds,
+                Scrollable: e.Scrollable,
+                Focused: _app.ReportsKeyboardFocus && ReferenceEquals(e, focused),
+                Depth: e.Depth,
+                ImportantForAccessibility: full ? e.ImportantForAccessibility ?? true : null))
             .ToList();
-        return Task.FromResult(new RawObservation(device, screen.Package ?? _app.AppId, elements, HashOf(screen), _clock.UtcNow));
+        if (full)
+        {
+            FullObservations++;
+        }
+
+        return Task.FromResult(new RawObservation(device, screen.Package ?? _app.AppId, elements, HashOf(screen), _clock.UtcNow, request.Fidelity));
     }
 
     public Task<ActionExecution> ExecuteAsync(DeviceId device, ValidatedDeviceAction action, CancellationToken ct)
@@ -197,6 +242,16 @@ public sealed class FakeDevice : IDeviceAutomation
                 else if (_app.LauncherScreenId is { } launcher)
                 {
                     Show(launcher);
+                }
+
+                return Result(action, ActionOutcome.Succeeded, null);
+            case ActionType.PressKey when action.Key == DeviceKeys.Tab && Device.Platform == Platform.Android:
+                // Tab moves the keyboard focus to the next focusable element of the screen and wraps around (Android).
+                KeyPresses++;
+                var focusable = FocusableElements(_app.Screen(CurrentScreenId));
+                if (FocusedElement(_app.Screen(CurrentScreenId)) is not { TrapsKeyboardFocus: true })
+                {
+                    _focusIndex = focusable.Count == 0 ? -1 : (_focusIndex + 1) % focusable.Count;
                 }
 
                 return Result(action, ActionOutcome.Succeeded, null);
@@ -267,6 +322,16 @@ public sealed class FakeDevice : IDeviceAutomation
     {
         CurrentScreenId = _app.Screen(screenId).Id;
         _observationsOnScreen = 0;
+        _focusIndex = -1;
+    }
+
+    private List<FakeElement> FocusableElements(FakeScreen screen) =>
+        [.. screen.Elements.Where(e => e.IsKeyboardFocusable && !HiddenElements.Contains(e.ResourceId))];
+
+    private FakeElement? FocusedElement(FakeScreen screen)
+    {
+        var focusable = FocusableElements(screen);
+        return _focusIndex >= 0 && _focusIndex < focusable.Count ? focusable[_focusIndex] : null;
     }
 
     private static Task<ActionExecution> Result(ValidatedDeviceAction action, ActionOutcome outcome, string? detail, bool dispatched = true) =>

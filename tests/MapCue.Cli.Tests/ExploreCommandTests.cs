@@ -158,6 +158,86 @@ public sealed class ExploreCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task Contracts_from_yaml_are_captured_by_explore_built_and_versioned_and_a_manual_record_enters_the_next_version()
+    {
+        var config = Path.Combine(_root, "contracts.yaml");
+        File.WriteAllText(config, $$"""
+            schemaVersion: mapcue.config/1
+            workspace: {{Workspace}}
+            allowlist:
+              appIds: [com.mapcue.demoapp]
+              environments: [test]
+            budgets:
+              uiSettleTimeout: 200ms
+            identity:
+              screenHints:
+                - ':id/screen\.[A-Za-z0-9_.-]+$'
+            contracts:
+              analyzeScreens: true
+              keyboardFocus: true
+              maxTabPresses: 10
+            profiles:
+              - profileId: basic
+                platform: android
+                appId: com.mapcue.demoapp
+                environment: test
+                setupFlow: setup-basic.yaml
+                switchElements: [':id/profile\.basic$']
+              - profileId: investor
+                platform: android
+                appId: com.mapcue.demoapp
+                environment: test
+                setupFlow: setup-basic.yaml
+                capabilities: [investments]
+                switchElements: [':id/profile\.investor$']
+            """);
+
+        var device = new FakeDevice(FakeDemoApp.Basic(withAboutDialog: false), new ManualClock());
+        var (code, output, error) = await RunAsync(device, "explore", "--config", config, "--profile", "basic", "--seed", "c", "--app-build", "demo-1");
+        Assert.True(code == ExitCodes.Success, error + output);
+        Assert.Contains("screen     ", output, StringComparison.Ordinal);
+        Assert.Matches(@"keyboard   st_\w+ presses=\d+ focused=\d+ reached=(\d+)/\1 stop=cycleClosed", output);
+        Assert.True(device.KeyPresses > 0);
+
+        var (built, contracts, buildErr) = await RunAsync(null, "contract", "build", "--config", config);
+        Assert.True(built == ExitCodes.Success, buildErr + contracts);
+        Assert.Matches(@"contract   screen-[\w-]+ v1 \(new\) sha256:[0-9a-f]{12} states=1 contexts=1 elements=\d+ findings=\d+ file=screens/screen-[\w-]+/grp_[0-9a-f]{12}/screen-contract\.v1\.json", contracts);
+        Assert.Contains("a11y       ", contracts, StringComparison.Ordinal);
+        Assert.Matches(@"TalkBack inspected=(present|issues) automated=unsupported assistiveVerified=notTested", contracts);
+        Assert.Matches(@"Keyboard inspected=unsupported automated=pass assistiveVerified=notTested", contracts);
+        Assert.DoesNotMatch(@"inspected=pass", contracts);
+        Assert.Matches(@"contracts  total=7 new-versions=7 unchanged=0", contracts);
+
+        var (_, again, _) = await RunAsync(null, "contract", "build", "--config", config);
+        Assert.Contains("contracts  total=7 new-versions=0 unchanged=7", again, StringComparison.Ordinal);
+
+        var settingsKey = System.Text.RegularExpressions.Regex.Matches(contracts, @"contract   (screen-[\w-]+) v1")
+            .Select(m => m.Groups[1].Value)
+            .Single(key => File.ReadAllText(Directory.GetFiles(Path.Combine(Workspace, "screens", key), "*.json", SearchOption.AllDirectories).Single()).Contains("settings.switchprofile", StringComparison.Ordinal));
+        var transcript = Path.Combine(_root, "talkback.txt");
+        File.WriteAllText(transcript, "Protocol mapcue.a11y-protocol/1, TalkBack, Settings: every element announced; the notifications switch is announced as 'Switch, on' without a name.\n");
+        var (recorded, recordOut, recordErr) = await RunAsync(null, "a11y", "record", "--config", config, "--screen", settingsKey, "--profile", "basic", "--technology", "talkback", "--result", "fail", "--evidence", transcript, "--operator", "qa-1", "--device", "Pixel 8, Android 15, TalkBack 15.0");
+        Assert.True(recorded == ExitCodes.Success, recordErr + recordOut);
+        Assert.Matches(@"recorded   a11y_\w+ screen=scr_\w+ context=ctx_\w+ technology=TalkBack property=screen result=Fail evidence=ev_\w+", recordOut);
+
+        var (_, third, _) = await RunAsync(null, "contract", "build", "--config", config);
+        Assert.Contains($"contract   {settingsKey} v2 (new)", third, StringComparison.Ordinal);
+        Assert.Contains($"a11y       {settingsKey} TalkBack inspected=issues automated=unsupported assistiveVerified=fail", third, StringComparison.Ordinal);
+        Assert.Contains("contracts  total=7 new-versions=1 unchanged=6", third, StringComparison.Ordinal);
+
+        // Records that cannot be true or have no evidence are refused; nothing is created without a database.
+        var (wrong, _, wrongErr) = await RunAsync(null, "a11y", "record", "--config", config, "--screen", settingsKey, "--profile", "basic", "--technology", "voiceover", "--result", "pass", "--evidence", transcript, "--operator", "qa-1", "--device", "Pixel 8");
+        Assert.Equal(ExitCodes.InputInvalid, wrong);
+        Assert.Contains("VoiceOver cannot be recorded on the Android platform", wrongErr, StringComparison.Ordinal);
+        var (missing, _, _) = await RunAsync(null, "a11y", "record", "--config", config, "--screen", settingsKey, "--technology", "talkback", "--result", "pass", "--evidence", Path.Combine(_root, "none.txt"), "--operator", "qa-1", "--device", "Pixel 8");
+        Assert.Equal(ExitCodes.InputInvalid, missing);
+        var (empty, _, emptyErr) = await RunAsync(null, "contract", "build", "--workspace", Path.Combine(_root, "empty"));
+        Assert.Equal(ExitCodes.InputInvalid, empty);
+        Assert.Contains("run mapcue explore first", emptyErr, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(_root, "empty")));
+    }
+
+    [Fact]
     public async Task Same_seed_gives_the_same_run_id()
     {
         var config = Config();

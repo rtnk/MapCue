@@ -26,6 +26,18 @@ public sealed class MapCueConfigDocument
 
     /// <summary>Screen identity hints (STEP-05).</summary>
     public IdentityDocument? Identity { get; set; }
+
+    /// <summary>Screen contract captures during exploration (STEP-08).</summary>
+    public ContractsDocument? Contracts { get; set; }
+}
+
+public sealed class ContractsDocument
+{
+    public bool? AnalyzeScreens { get; set; }
+
+    public bool? KeyboardFocus { get; set; }
+
+    public int? MaxTabPresses { get; set; }
 }
 
 public sealed class IdentityDocument

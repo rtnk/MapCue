@@ -58,6 +58,8 @@ public static class MapCueCli
 
         root.Subcommands.Add(DoctorCommand.Build(host, logger));
         root.Subcommands.Add(GraphCommand.Build(host, logger));
+        root.Subcommands.Add(ContractCommands.BuildContract(host, logger));
+        root.Subcommands.Add(ContractCommands.A11y(host, logger));
         return root;
     }
 

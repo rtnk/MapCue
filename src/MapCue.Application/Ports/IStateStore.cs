@@ -24,6 +24,9 @@ public interface IUnitOfWork
     IAgentCallRepository AgentCalls { get; }
 
     IRunRepository Runs { get; }
+
+    /// <summary>Screen captures, contract versions and manual accessibility records (STEP-08).</summary>
+    IScreenContractRepository Contracts { get; }
 }
 
 /// <summary>Contexts, screens, states, variants, snapshots, evidence, candidates, edges, observations and recipes.</summary>
@@ -215,4 +218,28 @@ public interface IRunRepository
 
     /// <summary>Releases every device lease of the run. Returns the number of released leases.</summary>
     Task<int> ReleaseDeviceLeasesAsync(string ownerRunId, CancellationToken ct);
+}
+
+/// <summary>Screen captures, contract versions and manual accessibility records (STEP-08).</summary>
+public interface IScreenContractRepository
+{
+    /// <summary>Inserts the capture or replaces the capture of the same kind, state and context (the latest one wins).</summary>
+    Task UpsertCaptureAsync(ScreenCapture capture, CancellationToken ct);
+
+    /// <summary>Captures of one context (or all), by context, state and kind.</summary>
+    Task<IReadOnlyList<ScreenCapture>> ListCapturesAsync(string? contextId, CancellationToken ct);
+
+    /// <summary>Inserts the record unless its id exists. Returns true when inserted.</summary>
+    Task<bool> InsertRecordAsync(AccessibilityRecord record, CancellationToken ct);
+
+    /// <summary>Manual records, by screen, context and record time.</summary>
+    Task<IReadOnlyList<AccessibilityRecord>> ListRecordsAsync(CancellationToken ct);
+
+    /// <summary>The latest version of a contract, or null.</summary>
+    Task<ScreenContractVersion?> GetLatestContractAsync(string screenId, string groupKey, CancellationToken ct);
+
+    Task InsertContractAsync(ScreenContractVersion contract, CancellationToken ct);
+
+    /// <summary>All versions, by screen, group and version.</summary>
+    Task<IReadOnlyList<ScreenContractVersion>> ListContractsAsync(CancellationToken ct);
 }

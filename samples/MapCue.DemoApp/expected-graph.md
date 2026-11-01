@@ -113,6 +113,16 @@ Settings → `settings.checkupdates` nie sprawdza aktualizacji, tylko pokazuje �
 
 Bez zgody operatora eksploracja nie ma bezpiecznego wyjścia, więc oczekiwany wynik to `Blocked` z `resume.md` (STEP-09). Zadania z innych ekranów nie są tym zablokowane, bo wymagają tylko ponownego uruchomienia aplikacji.
 
+## Kontrakty ekranów i accessibility (STEP-08)
+
+Oczekiwania wobec `mapcue contract build` po eksploracji obu profili z sekcją `contracts` (kontrola 6 w `compare-expected.py`):
+
+- Jeden kontrakt na ekran logiczny (8 ekranów: 7 wspólnych + Investments). Każdy wariant (stan × profil) ma snapshot full z `AnalyzeScreen`. Wspólne ekrany mają warianty obu kontekstów, Investments tylko `investor`.
+- `tab.investments` ma w kontrakcie Home, Accounts i Settings `visibleWhen` z capability `investments` (po obu profilach `observed`).
+- Przełączniki `scenario.empty` i `settings.notifications` nie mają tekstu ani opisu (MAUI `Switch` bez etykiety). Reguła drzewa label.missing (brak etykiety) daje dla nich znalezisko „do sprawdzenia” (poziom `inspected`). Komórka TalkBack `inspected` ekranów Wybór profilu i Settings to `issues`, nigdy `pass`.
+- TalkBack `automated` = `unsupported` (G-05), `assistiveVerified` = `notTested` bez rekordu operatora. VoiceOver na Androidzie = `unsupported` we wszystkich komórkach.
+- Klawiatura (`automated`, PoC): wynik próby Tab na emulatorze jest raportowany per stan (`Keyboard probe`), a nie wymuszany. `pass` oznacza, że cykl fokusu się zamknął i każdy cel dostał fokus. `unverified` oznacza, że fokus nie był obserwowalny albo cykl się nie zamknął.
+
 ## Graf
 
 ```mermaid

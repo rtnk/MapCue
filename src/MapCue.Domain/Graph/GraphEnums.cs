@@ -157,6 +157,12 @@ public enum EvidenceKind
     AgentRequest,
     AgentResponse,
     Flow,
+
+    /// <summary>Keyboard focus probe document (STEP-08).</summary>
+    FocusProbe,
+
+    /// <summary>Evidence file of a manual accessibility record (STEP-08).</summary>
+    OperatorRecord,
 }
 
 /// <summary>Strength of an <see cref="UiElement.ElementKey"/> (architecture §7.1 step 4). Weak keys are a map quality metric (R-04).</summary>

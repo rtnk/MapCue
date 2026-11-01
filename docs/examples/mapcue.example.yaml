@@ -63,6 +63,15 @@ identity:
   # tokens (same marker and state kind) is a profile variant of it, not a new state; 0 disables the rule.
   profileVariantMaxDelta: 2
 
+# STEP-08: screen contracts. Off by default. After the exploration of a context, every state gets a full hierarchy (AnalyzeScreen, CLI
+# `tapcue hierarchy`) and, on Android, a keyboard focus probe (AuditAccessibility: pressKey Tab up to maxTabPresses times, each a device
+# action charged to budgets.maxActions). `mapcue contract build` turns them into versioned contracts; `mapcue a11y record` adds manual
+# checks of the operator (docs/a11y-manual-protocol.md), the only way to assistiveVerified for screen readers.
+contracts:
+  analyzeScreens: true
+  keyboardFocus: true
+  maxTabPresses: 12
+
 profiles:
   - profileId: basic
     platform: android
