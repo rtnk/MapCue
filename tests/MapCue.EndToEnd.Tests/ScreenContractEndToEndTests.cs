@@ -173,6 +173,35 @@ public class ScreenContractEndToEndTests
     }
 
     [Fact]
+    public async Task Focus_that_stops_moving_is_unverified_never_a_closed_cycle()
+    {
+        // Emulator, STEP-08: Tab focused one element and the next press left it there. Two presses on the same element are not a cycle,
+        // so the verdict is unverified (with the element the focus stayed on), never pass and never fail.
+        var app = FakeDemoProfiles.Create();
+        app = app with
+        {
+            Screens = [.. app.Screens.Select(s => s with { Elements = [.. s.Elements.Select(e => e.ResourceId.EndsWith("/settings.notifications", StringComparison.Ordinal) ? e with { TrapsKeyboardFocus = true } : e)] })],
+        };
+        await using var h = Create(app);
+        await h.RunProfileAsync("basic");
+
+        var contracts = await BuildAsync(h);
+        var settings = contracts.Single(c => Marker(c) == "screen.settings");
+        var graph = Assert.Single(settings.Keyboard.Observed);
+        Assert.Equal(A11yStatus.Unverified, graph.Status);
+        Assert.False(graph.CycleClosed);
+        Assert.Contains("focusDidNotMove", graph.Detail!, StringComparison.Ordinal);
+        Assert.Contains("settings.notifications", graph.Detail!, StringComparison.Ordinal);
+        Assert.Equal(A11yStatus.Unverified, Row(settings, AccessibilityTechnology.Keyboard).Automated.Status);
+        Assert.DoesNotContain(settings.Accessibility.Findings, f => f.RuleId == "keyboard.unreachable");
+
+        // A screen with one keyboard target that keeps the focus on it is fully covered (a cycle of one).
+        var whatsNew = contracts.Single(c => Marker(c) == "screen.whatsnew");
+        Assert.True(Assert.Single(whatsNew.Keyboard.Observed).CycleClosed);
+        Assert.Equal(A11yStatus.Pass, Row(whatsNew, AccessibilityTechnology.Keyboard).Automated.Status);
+    }
+
+    [Fact]
     public async Task Without_an_observable_focus_the_keyboard_cell_is_unverified_not_pass()
     {
         await using var h = Create(FakeDemoProfiles.Create() with { ReportsKeyboardFocus = false });

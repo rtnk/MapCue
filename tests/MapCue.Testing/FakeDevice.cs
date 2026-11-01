@@ -66,6 +66,9 @@ public sealed record FakeElement(string ResourceId, string Text, string? TargetS
     /// <summary>Android <c>important-for-accessibility</c> as the full hierarchy reports it; null = not reported.</summary>
     public bool? ImportantForAccessibility { get; init; }
 
+    /// <summary>Once focused, <c>Tab</c> leaves the focus on this element (a keyboard trap, as seen on the emulator in STEP-08).</summary>
+    public bool TrapsKeyboardFocus { get; init; }
+
     public bool IsKeyboardFocusable => KeyboardFocusable ?? Clickable;
 }
 
@@ -246,7 +249,11 @@ public sealed class FakeDevice : IDeviceAutomation
                 // Tab moves the keyboard focus to the next focusable element of the screen and wraps around (Android).
                 KeyPresses++;
                 var focusable = FocusableElements(_app.Screen(CurrentScreenId));
-                _focusIndex = focusable.Count == 0 ? -1 : (_focusIndex + 1) % focusable.Count;
+                if (FocusedElement(_app.Screen(CurrentScreenId)) is not { TrapsKeyboardFocus: true })
+                {
+                    _focusIndex = focusable.Count == 0 ? -1 : (_focusIndex + 1) % focusable.Count;
+                }
+
                 return Result(action, ActionOutcome.Succeeded, null);
             case ActionType.LaunchApp:
                 _history.Clear();

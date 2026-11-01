@@ -222,6 +222,8 @@ public sealed partial class ExplorationEngine
                 [.. s.Elements.Where(e => e.Flags.HasFlag(UiElementStates.Focused)).Select(e => e.ElementKey).Distinct(StringComparer.Ordinal)];
 
             var steps = new List<FocusProbeStep>();
+            var initialFocused = Focused(initial.Normalized);
+            var targets = KeyboardTargets.Of(initial.Normalized);
             string? first = null;
             var stop = FocusProbeStops.MaxPresses;
             var cycle = false;
@@ -256,6 +258,19 @@ public sealed partial class ExplorationEngine
                 steps.Add(new FocusProbeStep(press, execution.Outcome, focused, recorded.Normalized.IdentityHash, recorded.Snapshot.RawSha256));
                 if (focused.Count > 0)
                 {
+                    // The same element twice in a row: focus did not move. That is never a closed cycle (emulator, STEP-08: a false
+                    // "cycle" after two presses on one element gave a false fail), except when the only keyboard target of the state holds
+                    // the focus: a cycle of one element that covers every target.
+                    var before = steps.Count >= 2 ? steps[^2].FocusedElementKeys : initialFocused;
+                    var previous = before.Count > 0 ? before[0] : null;
+                    if (previous == focused[0])
+                    {
+                        var visited = steps.SelectMany(s => s.FocusedElementKeys.Take(1)).Distinct(StringComparer.Ordinal).ToList();
+                        cycle = visited.Count == 1 && targets.Count == 1 && targets[0] == focused[0];
+                        stop = cycle ? FocusProbeStops.CycleClosed : FocusProbeStops.FocusStuck;
+                        break;
+                    }
+
                     if (first is null)
                     {
                         first = focused[0];
@@ -264,12 +279,6 @@ public sealed partial class ExplorationEngine
                     {
                         cycle = true;
                         stop = FocusProbeStops.CycleClosed;
-                        break;
-                    }
-
-                    if (steps.Count >= 2 && steps[^2].FocusedElementKeys.Count > 0 && steps[^2].FocusedElementKeys[0] == focused[0])
-                    {
-                        stop = FocusProbeStops.FocusStuck;
                         break;
                     }
                 }
@@ -290,8 +299,8 @@ public sealed partial class ExplorationEngine
                 max,
                 initial.Normalized.IdentityHash,
                 initial.Snapshot.RawSha256,
-                Focused(initial.Normalized),
-                KeyboardTargets.Of(initial.Normalized),
+                initialFocused,
+                targets,
                 steps,
                 cycle,
                 stop);

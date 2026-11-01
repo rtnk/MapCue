@@ -223,6 +223,20 @@ def check_contracts(db, workspace, names, profile_of, failures):
         tb, kb = rows["TalkBack"], rows["Keyboard"]
         lines.append(f"| {', '.join(state_names_of)} | v{contract['version']} | {tb['inspected']['status']} / {tb['automated']['status']} / {tb['assistiveVerified']['status']}"
                      f" | {kb['automated']['status']} | {len(contract['accessibility']['findings'])} |")
+    # Diagnostics (the workspace artifact may be unreachable, R-09): findings per rule and the observed keyboard focus per state.
+    def short(key):
+        return key.rsplit("/", 1)[-1] if key else "-"
+    lines += ["", "| Screen | Profile | Rule | Level | Element | Message |", "|---|---|---|---|---|---|"]
+    for contract in sorted(contracts, key=lambda c: c["screenKey"]):
+        for f in contract["accessibility"]["findings"]:
+            screen = names[f["stateId"]][0] if f["stateId"] in names else f["stateId"]
+            lines.append(f"| {screen} | {profile_of.get(f['contextId'], f['contextId'])} | {f['ruleId']} | {f['level']} | {short(f['elementKey'])} | {f['message'][:120]} |")
+    lines += ["", "| Screen | Profile | Keyboard | Cycle | Observed focus order | Unreached | Detail |", "|---|---|---|---|---|---|---|"]
+    for contract in sorted(contracts, key=lambda c: c["screenKey"]):
+        for g in contract["keyboard"]["observed"]:
+            screen = names[g["stateId"]][0] if g["stateId"] in names else g["stateId"]
+            lines.append(f"| {screen} | {profile_of.get(g['contextId'], g['contextId'])} | {g['status']} | {g['cycleClosed']} | {' > '.join(short(k) for k in g['order'])}"
+                         f" | {', '.join(short(k) for k in g['unreached'])} | {g['detail'] or ''} |")
     for state_id, (name, kind, _) in names.items():
         if kind != "Loading" and name != "?" and state_id not in screens_with_contract:
             failures.append(f"state {name} ({state_id}) has no screen contract")

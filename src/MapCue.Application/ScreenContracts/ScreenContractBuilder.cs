@@ -462,7 +462,8 @@ public static partial class ScreenContractBuilder
         else if (!probe.CycleClosed)
         {
             status = A11yStatus.Unverified;
-            detail = $"the focus cycle did not close ({probe.StopReason} after {probe.Steps.Count} presses)";
+            var stuckOn = probe.StopReason == FocusProbeStops.FocusStuck ? probe.Steps.LastOrDefault(s => s.FocusedElementKeys.Count > 0)?.FocusedElementKeys[0] : null;
+            detail = $"the focus cycle did not close ({probe.StopReason} after {probe.Steps.Count} presses{(stuckOn is null ? string.Empty : ", focus stayed on " + stuckOn)})";
         }
         else
         {
