@@ -19,6 +19,22 @@ public sealed record MapCueSettings(
 
     /// <summary>Screen identity settings (STEP-05). Defaults to no screen hints.</summary>
     public IdentitySettings Identity { get; init; } = IdentitySettings.Default;
+
+    /// <summary>Screen contract captures (STEP-08). Defaults to none: exploration behaves as before.</summary>
+    public ContractSettings Contracts { get; init; } = ContractSettings.Default;
+}
+
+/// <summary>
+/// Screen contract captures during <c>mapcue explore</c> (STEP-08, architecture §14). After the context's explore tasks, a run captures every
+/// state it saw: <see cref="AnalyzeScreens"/> takes the full hierarchy (CLI <c>hierarchy</c>, task <c>AnalyzeScreen</c>);
+/// <see cref="KeyboardFocus"/> presses <c>Tab</c> up to <see cref="MaxTabPresses"/> times and observes the focused element (task
+/// <c>AuditAccessibility</c>, Android only, PoC). Every key press is a device action charged to <c>budgets.maxActions</c>.
+/// </summary>
+public sealed record ContractSettings(bool AnalyzeScreens, bool KeyboardFocus, int MaxTabPresses)
+{
+    public static ContractSettings Default { get; } = new(AnalyzeScreens: false, KeyboardFocus: false, MaxTabPresses: 12);
+
+    public bool Enabled => AnalyzeScreens || KeyboardFocus;
 }
 
 /// <summary>

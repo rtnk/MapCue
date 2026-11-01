@@ -7,11 +7,16 @@ public static class ContractSchemas
 {
     public const string AgentExplorationRequestFile = "agent-exploration-request.v1.schema.json";
     public const string AgentExplorationResponseFile = "agent-exploration-response.v1.schema.json";
+    public const string ScreenContractFile = "screen-contract.v1.schema.json";
 
     private static readonly Lazy<JsonSchema> _request = new(() => JsonSchema.Parse(Text(AgentExplorationRequestFile)));
     private static readonly Lazy<JsonSchema> _response = new(() => JsonSchema.Parse(Text(AgentExplorationResponseFile)));
 
+    private static readonly Lazy<JsonSchema> _screenContract = new(() => JsonSchema.Parse(Text(ScreenContractFile)));
+
     public static JsonSchema AgentExplorationRequest => _request.Value;
+
+    public static JsonSchema ScreenContract => _screenContract.Value;
 
     public static JsonSchema AgentExplorationResponse => _response.Value;
 

@@ -162,7 +162,11 @@ public static partial class SnapshotNormalizer
             BoundsBucket: BoundsBucket(n.Raw.Bounds),
             ListTemplate: n.ListTemplate,
             Depth: n.Raw.Depth,
-            Interactive: n.Interactive)).ToList();
+            Interactive: n.Interactive)
+        {
+            Bounds = n.Raw.Bounds,
+            ImportantForAccessibility = n.Raw.ImportantForAccessibility,
+        }).ToList();
 
         var packages = kept.Select(n => PackageOf(n.Raw.ResourceId)).OfType<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
 

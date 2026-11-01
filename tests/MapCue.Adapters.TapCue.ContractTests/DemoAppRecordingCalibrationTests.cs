@@ -3,6 +3,7 @@ using MapCue.Adapters.TapCue.Parsing;
 using MapCue.Application.Exploration;
 using MapCue.Application.Graph;
 using MapCue.Application.Ports;
+using MapCue.Application.ScreenContracts;
 using MapCue.Domain;
 using MapCue.Domain.Graph;
 using MapCue.Testing;
@@ -40,6 +41,27 @@ public class DemoAppRecordingCalibrationTests
         })]);
 
     private static KnownState Known(string id, NormalizedSnapshot snapshot) => new(id, "scr_" + id, snapshot.IdentityHash, snapshot.FingerprintVersion, snapshot.IdentityTokens);
+
+    [Fact]
+    public void The_full_hierarchy_carries_bounds_and_important_for_accessibility_for_contracts()
+    {
+        // STEP-08: the CLI hierarchy reports important-for-accessibility (the fast MCP snapshot does not, G-02); normalization keeps it with
+        // the bounds on the elements (never in a hash: the pinned identity of the recording is unchanged).
+        Assert.All(Basic.Where(e => e.ClassName is not null), e => Assert.NotNull(e.ImportantForAccessibility));
+        Assert.Contains(Basic, e => e.ImportantForAccessibility == false);
+        var home = Normalize(Basic);
+        var targets = KeyboardTargets.Of(home);
+        Assert.Contains("id:" + Id("home.accounts"), targets);
+        Assert.Contains("id:" + Id("tab.settings"), targets);
+        Assert.DoesNotContain("id:" + Id("screen.home"), targets);
+        Assert.All(home.Elements.Where(KeyboardTargets.IsTarget), e => Assert.Matches(@"^\[\d+,\d+\]\[\d+,\d+\]$", e.Bounds!));
+        Assert.All(home.Elements.Where(KeyboardTargets.IsTarget), e => Assert.True(e.ImportantForAccessibility));
+
+        // Predicted order (unverified): the Home buttons come before the tab bar at the bottom of the screen.
+        var order = ScreenContractBuilder.PredictedOrder(home);
+        Assert.Equal(targets.Count, order.Count);
+        Assert.True(order.ToList().IndexOf("id:" + Id("home.accounts")) < order.ToList().IndexOf("id:" + Id("tab.home")));
+    }
 
     [Fact]
     public void Maui_automation_ids_are_resource_id_keys_and_system_ui_is_removed()

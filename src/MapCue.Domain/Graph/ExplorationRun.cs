@@ -47,8 +47,14 @@ public sealed record RunCounters(
 
     public int RepresentedTasks { get; init; }
 
-    /// <summary>Device operations charged to <c>budgets.maxActions</c>: explored actions, navigation steps and resets.</summary>
-    public int ChargedActions => DeviceActions + NavigationActions + Resets;
+    /// <summary>Screen captures of this run (STEP-08): full hierarchies and keyboard focus probes.</summary>
+    public int ScreenCaptures { get; init; }
+
+    /// <summary>Key presses of keyboard focus probes (STEP-08).</summary>
+    public int KeyPresses { get; init; }
+
+    /// <summary>Device operations charged to <c>budgets.maxActions</c>: explored actions, navigation steps, resets and key presses.</summary>
+    public int ChargedActions => DeviceActions + NavigationActions + Resets + KeyPresses;
 }
 
 /// <summary>

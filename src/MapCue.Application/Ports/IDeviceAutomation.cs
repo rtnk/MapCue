@@ -39,7 +39,8 @@ public sealed record ObservationRequest(string AppId, ObservationFidelity Fideli
 
 /// <summary>
 /// Raw element as reported by the automation tool, before normalization (STEP-03). Elements are listed in
-/// pre-order; <see cref="Depth"/> is the nesting level in the reported tree (0 = top level).
+/// pre-order; <see cref="Depth"/> is the nesting level in the reported tree (0 = top level). <see cref="ImportantForAccessibility"/> is
+/// reported only by the full hierarchy on Android (null: unknown, e.g. MCP <c>inspect_screen</c> or iOS; STEP-08).
 /// </summary>
 public sealed record RawElement(
     string? ResourceId,
@@ -55,7 +56,8 @@ public sealed record RawElement(
     bool Checked = false,
     bool Focused = false,
     bool Selected = false,
-    int Depth = 0);
+    int Depth = 0,
+    bool? ImportantForAccessibility = null);
 
 /// <summary>
 /// A screen observation. <see cref="RawPayload"/> is the tool's payload after redaction (kept for evidence and
@@ -83,7 +85,11 @@ public sealed record ValidatedDeviceAction(
     string? TargetResourceId,
     string? TargetText,
     string? InputValueRef,
-    ScrollDirection? Direction = null);
+    ScrollDirection? Direction = null)
+{
+    /// <summary>Key of a <see cref="ActionType.PressKey"/> action (one of <see cref="DeviceKeys.Allowed"/>); null for other types.</summary>
+    public string? Key { get; init; }
+}
 
 /// <summary>Why a device call did not succeed. Classified from tool output; unrecognised text is <see cref="Unknown"/>.</summary>
 public enum DeviceErrorKind

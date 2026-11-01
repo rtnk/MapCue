@@ -86,6 +86,7 @@ public enum UiElementStates
 /// A normalized element (architecture §6, §7.1). <see cref="ElementRef"/> is valid within one snapshot (<c>e17</c>);
 /// <see cref="ElementKey"/> is stable within a screen. <see cref="Label"/> is the masked label used for identity;
 /// <see cref="Text"/> is the (redacted) original. <see cref="ListTemplate"/> is set for elements inside a detected list row.
+/// <see cref="Bounds"/> and <see cref="ImportantForAccessibility"/> (STEP-08) are carried for contracts and accessibility only.
 /// </summary>
 public sealed record UiElement(
     string ElementRef,
@@ -99,7 +100,14 @@ public sealed record UiElement(
     string? BoundsBucket,
     string? ListTemplate,
     int Depth,
-    bool Interactive);
+    bool Interactive)
+{
+    /// <summary>Bounds as reported (<c>[l,t][r,b]</c> px), for screen contracts and accessibility rules (STEP-08); not part of any hash.</summary>
+    public string? Bounds { get; init; }
+
+    /// <summary>Android <c>important-for-accessibility</c> from the full hierarchy (STEP-08); null when the tool does not report it.</summary>
+    public bool? ImportantForAccessibility { get; init; }
+}
 
 /// <summary>A detected list (architecture §7.1 step 3): <c>list(templateHash, countBucket ∈ {0, 1, many})</c>.</summary>
 public sealed record UiList(string ContainerKey, string TemplateHash, int RowCount, string CountBucket);

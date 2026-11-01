@@ -16,4 +16,21 @@ public static class TaskKeys
         ArgumentNullException.ThrowIfNull(context);
         return ContentHash.Of("mapcue.task/1", nameof(TaskType.AnalyzeState), stateId, context.Signature, context.AppBuildId, reasonerPromptVersion);
     }
+
+    /// <summary>Version of the screen capture tasks; a new version captures every state again.</summary>
+    public const string ScreenCaptureVersion = "screen-capture/1";
+
+    /// <summary><c>H(type, stateId, contextSignature, appBuildId, captureVersion)</c>: one full-hierarchy capture per state, context and build (STEP-08).</summary>
+    public static string AnalyzeScreen(string stateId, ExplorationContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return ContentHash.Of("mapcue.task/1", nameof(TaskType.AnalyzeScreen), stateId, context.Signature, context.AppBuildId, ScreenCaptureVersion);
+    }
+
+    /// <summary><c>H(type, stateId, contextSignature, appBuildId, captureVersion)</c>: one keyboard focus probe per state, context and build (STEP-08).</summary>
+    public static string AuditAccessibility(string stateId, ExplorationContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return ContentHash.Of("mapcue.task/1", nameof(TaskType.AuditAccessibility), stateId, context.Signature, context.AppBuildId, ScreenCaptureVersion);
+    }
 }

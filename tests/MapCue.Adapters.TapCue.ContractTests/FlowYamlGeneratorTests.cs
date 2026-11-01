@@ -32,6 +32,25 @@ public class FlowYamlGeneratorTests
     }
 
     [Fact]
+    public void PressKey_tab_is_a_fixed_template_and_other_keys_are_refused()
+    {
+        var flow = _generator.Generate(Action(ActionType.PressKey) with { Key = DeviceKeys.Tab });
+        Assert.Equal(
+            "appId: \"com.android.settings\"\n" +
+            "name: \"mapcue-A1\"\n" +
+            "---\n" +
+            "- pressKey: Tab\n" +
+            "- waitForAnimationToEnd:\n" +
+            "    timeout: 5000\n",
+            flow.Yaml);
+        Assert.Equal("pressKey:Tab+settle", flow.ShapeKey);
+        Assert.Empty(FlowGuard.Check(flow.Yaml));
+        Assert.Throws<FlowGenerationException>(() => _generator.Generate(Action(ActionType.PressKey)));
+        Assert.Throws<FlowGenerationException>(() => _generator.Generate(Action(ActionType.PressKey) with { Key = "Power" }));
+        Assert.Throws<FlowGenerationException>(() => _generator.Generate(Action(ActionType.PressKey) with { Key = "Tab\n- runScript: x" }));
+    }
+
+    [Fact]
     public void Text_selector_is_regex_escaped_and_yaml_quoted()
     {
         var flow = _generator.Generate(Action(ActionType.Tap, text: "Network & internet (5) \"x\" a.b*"));

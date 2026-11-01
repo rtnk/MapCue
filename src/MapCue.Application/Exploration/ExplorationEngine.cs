@@ -50,7 +50,7 @@ public static class RunEventTypes
 /// </list>
 /// Attempt artifacts go to <c>runs/&lt;runId&gt;/tasks/&lt;taskId&gt;/attempts/&lt;n&gt;/attempt.json</c> (links to redacted blobs).
 /// </summary>
-public sealed class ExplorationEngine
+public sealed partial class ExplorationEngine
 {
     /// <summary>Error prefix of attempts ended by an interruption (counted against <c>budgets.maxRetries</c>).</summary>
     public const string InterruptedError = "interrupted";
@@ -99,7 +99,7 @@ public sealed class ExplorationEngine
     private sealed class BudgetStopException(string message) : Exception(message);
 
     /// <summary>The state of one run: device, context, current state, the claimed task and counters.</summary>
-    private sealed class RunSession
+    private sealed partial class RunSession
     {
         private readonly ExplorationEngine _e;
         private readonly ExplorationOptions _o;
@@ -453,13 +453,18 @@ public sealed class ExplorationEngine
                     continue;
                 }
 
-                if (task.Type == TaskType.AnalyzeState)
+                switch (task.Type)
                 {
-                    await AnalyzeAsync(task, ct);
-                }
-                else
-                {
-                    await ExploreAsync(task, ct);
+                    case TaskType.AnalyzeState:
+                        await AnalyzeAsync(task, ct);
+                        break;
+                    case TaskType.AnalyzeScreen:
+                    case TaskType.AuditAccessibility:
+                        await CaptureAsync(task, ct);
+                        break;
+                    default:
+                        await ExploreAsync(task, ct);
+                        break;
                 }
 
                 await SaveCountersAsync(ct);
@@ -487,7 +492,8 @@ public sealed class ExplorationEngine
                 var explore = pending.Where(t => t.Type == TaskType.ExploreAction).ToList();
                 if (explore.Count == 0)
                 {
-                    return null;
+                    // Screen captures (STEP-08) only after the context's exploration: they never change what the graph of a run is.
+                    return await NextCaptureTaskAsync(pending, ct);
                 }
 
                 // A task from a state at depth d makes a path of d + 1 actions from the start state (budgets.maxDepth).
@@ -648,7 +654,7 @@ public sealed class ExplorationEngine
         {
             var contextId = _context!.ContextId;
             var snapshot = (await _e.Store.InTransactionAsync(uow => uow.Graph.ListSnapshotsAsync(ct), ct))
-                .Where(s => s.StateId == stateId && s.ContextId == contextId)
+                .Where(s => s.StateId == stateId && s.ContextId == contextId && s.Fidelity == SnapshotFidelity.Fast)
                 .OrderByDescending(s => s.ObservedAt)
                 .ThenBy(s => s.SnapshotId, StringComparer.Ordinal)
                 .FirstOrDefault();

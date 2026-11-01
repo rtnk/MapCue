@@ -18,4 +18,6 @@ Commands:
   diff             Compare screen maps of two runs or builds.
   doctor           Check TapCue, devices and environment prerequisites.
   graph            Maintain the screen graph (test tooling: import recorded snapshots).
+  contract         Screen contracts (STEP-08): build and version them from the workspace.
+  a11y             Accessibility (STEP-08): manual checks of the operator.
 
