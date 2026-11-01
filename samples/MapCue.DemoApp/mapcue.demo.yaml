@@ -1,5 +1,5 @@
-# MapCue exploration of the demo app (STEP-05 vertical slice, STEP-07 profiles): profiles `basic` and `investor` explored one after the
-# other in one workspace (one run per profile), rule-based reasoner (no LLM), Android emulator.
+# MapCue exploration of the demo app (STEP-05 vertical slice, STEP-07 profiles, STEP-08 screen contracts): profiles `basic` and `investor`
+# explored one after the other in one workspace (one run per profile), rule-based reasoner (no LLM), Android emulator.
 # Used by .github/workflows/demo-app.yml (job android-explore) through run-explore.sh; expected map: expected-graph.md.
 schemaVersion: mapcue.config/1
 workspace: .mapcue-demo
@@ -11,7 +11,8 @@ allowlist:
 
 budgets:
   maxDepth: 8
-  maxActions: 150
+  # STEP-08: every Tab press of the keyboard focus probe is a device action too.
+  maxActions: 400
   maxDuration: 30m
   uiSettleTimeout: 5s
   actionTimeout: 30s
@@ -30,6 +31,13 @@ identity:
     - ':id/screen\.[A-Za-z0-9_.-]+$'
   # A profile shows a few elements more or less on a shared screen (the Investments tab): a variant, not a new state (R-04).
   profileVariantMaxDelta: 2
+
+# STEP-08: after the exploration of a context, every state gets a full hierarchy (AnalyzeScreen) and a keyboard focus probe with Tab
+# (AuditAccessibility, Android PoC); `mapcue contract build` turns them into screen contracts.
+contracts:
+  analyzeScreens: true
+  keyboardFocus: true
+  maxTabPresses: 12
 
 profiles:
   - profileId: basic

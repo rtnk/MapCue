@@ -11,7 +11,10 @@ on its own edges with the transitions of its profile. Hard checks (exit code 1 w
   3. every observed edge has before evidence and after evidence (a state snapshot, or the screen outside the app), in its own context;
   4. every discovered state can be named by a screen marker of expected-graph.md (screen.*) or is an AlertDialog;
   5. (STEP-07) one state per screen marker (a profile difference never duplicates a state, R-04); with both profiles explored, the
-     shared screens are states of both contexts, tab.investments is on the investor variants only and never an action of basic.
+     shared screens are states of both contexts, tab.investments is on the investor variants only and never an action of basic;
+  6. (STEP-08, when the workspace has screen captures) every variant of a named state has a full hierarchy capture, every screen has a
+     contract (workspace/screens/), no accessibility cell of level inspected is pass, VoiceOver is unsupported on Android, and
+     assistiveVerified is never pass without a manual record. The keyboard focus probe (PoC) is reported per state, not enforced.
 The coverage of the expected transitions (default policy) is reported, not enforced: it depends on budgets.
 """
 import json
@@ -164,6 +167,68 @@ def compare_context(db, names, context_id, profile, candidates, evidence, snapsh
     return lines + [""], failures, seen
 
 
+def table_exists(db, name):
+    return db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+
+
+def check_contracts(db, workspace, names, profile_of, failures):
+    """Control 6 (STEP-08): captures, contracts and the accessibility matrix."""
+    if not table_exists(db, "screen_captures"):
+        return []
+    captures = list(db.execute("SELECT kind, state_id, context_id, status, detail FROM screen_captures ORDER BY kind, state_id, context_id"))
+    if not captures:
+        return []
+    lines = ["## Screen contracts (STEP-08)", ""]
+    full = {(s, c): status for kind, s, c, status, _ in captures if kind == "FullHierarchy"}
+    kinds = {s: k for s, (_, k, _) in names.items()}
+    for state_id, context_id in db.execute("SELECT state_id, context_id FROM screen_variants"):
+        name = names[state_id][0]
+        if kinds.get(state_id) == "Loading" or name == "?":
+            continue
+        status = full.get((state_id, context_id))
+        if status != "Captured":
+            failures.append(f"{profile_of[context_id]}: {name} has no full hierarchy capture ({status or 'none'})")
+
+    lines += ["| Profile | Screen | Keyboard probe | Detail |", "|---|---|---|---|"]
+    for kind, state_id, context_id, status, detail in captures:
+        if kind == "KeyboardFocus":
+            lines.append(f"| {profile_of[context_id]} | {names[state_id][0]} | {status} | {detail or ''} |")
+    lines.append("")
+
+    files = {}
+    for path in sorted((workspace / "screens").glob("*/*/screen-contract.v*.json")):
+        version = int(path.name[len("screen-contract.v"):-len(".json")])
+        if path.parent not in files or version > files[path.parent][0]:
+            files[path.parent] = (version, path)
+    contracts = [json.loads(p.read_text(encoding="utf-8")) for _, p in files.values()]
+    screens_with_contract = set()
+    lines += ["| Screen | Version | TalkBack (inspected / automated / assistive) | Keyboard (automated) | Findings |", "|---|---|---|---|---|"]
+    for contract in sorted(contracts, key=lambda c: c["screenKey"]):
+        if contract.get("schemaVersion") != "mapcue.screen-contract/1":
+            failures.append(f"contract {contract.get('screenKey')}: schemaVersion {contract.get('schemaVersion')}")
+            continue
+        state_names_of = sorted({names[s["stateId"]][0] for s in contract["states"] if s["stateId"] in names})
+        screens_with_contract.update(s["stateId"] for s in contract["states"])
+        rows = {r["technology"]: r for r in contract["accessibility"]["matrix"]}
+        records = contract["accessibility"]["manualRecords"]
+        for tech, row in rows.items():
+            if row["inspected"]["status"] == "pass":
+                failures.append(f"contract {contract['screenKey']}: {tech} is pass at level inspected")
+            if row["assistiveVerified"]["status"] == "pass" and not records:
+                failures.append(f"contract {contract['screenKey']}: {tech} assistiveVerified pass without a manual record")
+        if contract["group"]["platform"] == "Android":
+            vo = rows["VoiceOver"]
+            if any(vo[level]["status"] != "unsupported" for level in ("inspected", "automated", "assistiveVerified")):
+                failures.append(f"contract {contract['screenKey']}: VoiceOver is not unsupported on Android")
+        tb, kb = rows["TalkBack"], rows["Keyboard"]
+        lines.append(f"| {', '.join(state_names_of)} | v{contract['version']} | {tb['inspected']['status']} / {tb['automated']['status']} / {tb['assistiveVerified']['status']}"
+                     f" | {kb['automated']['status']} | {len(contract['accessibility']['findings'])} |")
+    for state_id, (name, kind, _) in names.items():
+        if kind != "Loading" and name != "?" and state_id not in screens_with_contract:
+            failures.append(f"state {name} ({state_id}) has no screen contract")
+    return lines + [""]
+
+
 def main():
     if len(sys.argv) != 3:
         print(__doc__, file=sys.stderr)
@@ -227,6 +292,8 @@ def main():
         lines += ctx_lines
         failures += ctx_failures
         found_states.update(seen)
+
+    lines += check_contracts(db, workspace, names, profile_of, failures)
 
     skipped = sorted({(profile_of[c], names[s][0], action_label(*candidates[(s, k)][:2]), risk)
                       for s, k, c, risk in db.execute("SELECT state_id, action_key, context_id, risk_class FROM candidate_assessments")

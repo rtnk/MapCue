@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Installs the demo APK on a booted emulator, runs `mapcue explore` with mapcue.demo.yaml for the profiles basic and investor (one run
 # per profile, one workspace; rule-based reasoner, setup-<profile>.yaml) and compares the discovered graph of each context with
-# expected-graph.md (STEP-05 demo, STEP-07 profiles).
+# expected-graph.md (STEP-05 demo, STEP-07 profiles). STEP-08: the runs capture every state (full hierarchy, Tab focus probe) and
+# `mapcue contract build` writes the screen contracts (workspace/screens/), checked by compare-expected.py (control 6).
 #   samples/MapCue.DemoApp/run-explore.sh <mapcue> <tapcue> <apk> <out-dir> [device-id]
 # <mapcue> is the published CLI (dotnet publish src/MapCue.Cli); TapCue is found on PATH (its bin directory is prepended).
 set -uo pipefail
@@ -34,11 +35,16 @@ for profile in basic investor; do
   [ "$code" -eq 0 ] || explore=$code
 done
 "$MAPCUE" status --config samples/MapCue.DemoApp/mapcue.demo.yaml --profiles | tee "$OUT/status.txt"
+"$MAPCUE" contract build --config samples/MapCue.DemoApp/mapcue.demo.yaml > "$OUT/contracts.txt" 2> "$OUT/contracts.err"
+contracts=$?
+cat "$OUT/contracts.txt" "$OUT/contracts.err"
+echo "contract build exit code: $contracts"
+summary="$summary- contract build: exit code $contracts"$'\n'
 
 python3 -I "$HERE/compare-expected.py" .mapcue-demo "$OUT/compare.md"
 compare=$?
 cat "$OUT/compare.md"
-{ printf '%s\n' "$summary"; cat "$OUT/compare.md"; echo; echo '## mapcue status --profiles'; echo; echo '```'; cat "$OUT/status.txt"; echo '```'; } > "$OUT/report.md"
+{ printf '%s\n' "$summary"; cat "$OUT/compare.md"; echo; echo '## mapcue status --profiles'; echo; echo '```'; cat "$OUT/status.txt"; echo '```'; echo; echo '## mapcue contract build'; echo; echo '```'; cat "$OUT/contracts.txt"; echo '```'; } > "$OUT/report.md"
 cp -r .mapcue-demo "$OUT/workspace"
 tail -n 30 "$OUT/explore-basic.log.jsonl" "$OUT/explore-investor.log.jsonl"
 if [ "$explore" -ne 0 ]; then
@@ -46,4 +52,4 @@ if [ "$explore" -ne 0 ]; then
   find .mapcue-demo/tmp/tapcue -name maestro.log -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n 2 | cut -d' ' -f2- |
     while read -r log; do echo "--- $log"; tail -n 60 "$log"; done
 fi
-[ "$explore" -eq 0 ] && [ "$compare" -eq 0 ]
+[ "$explore" -eq 0 ] && [ "$compare" -eq 0 ] && [ "$contracts" -eq 0 ]
