@@ -91,6 +91,12 @@ public sealed record FakeAppModel(string AppId, string StartScreenId, IReadOnlyL
     /// </summary>
     public bool ReportsKeyboardFocus { get; init; } = true;
 
+    /// <summary>
+    /// A <c>Tab</c> press while an element has the focus activates that element (like a tap) instead of moving the focus, as the demo app did
+    /// on the emulator in STEP-08 (Demo app run 41309332696). Activated elements are listed in <see cref="FakeDevice.ActivatedByKey"/>.
+    /// </summary>
+    public bool TabActivatesFocusedElement { get; init; }
+
     public FakeScreen Screen(string id) =>
         Screens.FirstOrDefault(s => s.Id == id) ?? throw new KeyNotFoundException($"Unknown fake screen '{id}'.");
 }
@@ -138,6 +144,9 @@ public sealed class FakeDevice : IDeviceAutomation
 
     /// <summary>Keys pressed (<c>pressKey</c>, STEP-08).</summary>
     public int KeyPresses { get; private set; }
+
+    /// <summary>Resource ids (or texts) of elements a key press activated (<see cref="FakeAppModel.TabActivatesFocusedElement"/>).</summary>
+    public List<string> ActivatedByKey { get; } = [];
 
     /// <summary>When set, <see cref="ExecuteAsync"/> returns this outcome for actions on that resource id (fault injection).</summary>
     public Dictionary<string, ActionOutcome> Faults { get; } = new(StringComparer.Ordinal);
@@ -249,6 +258,13 @@ public sealed class FakeDevice : IDeviceAutomation
                 // Tab moves the keyboard focus to the next focusable element of the screen and wraps around (Android).
                 KeyPresses++;
                 var focusable = FocusableElements(_app.Screen(CurrentScreenId));
+                if (_app.TabActivatesFocusedElement && FocusedElement(_app.Screen(CurrentScreenId)) is { } active)
+                {
+                    ActivatedByKey.Add(string.IsNullOrEmpty(active.ResourceId) ? active.Text : active.ResourceId);
+                    Navigate(active);
+                    return Result(action, ActionOutcome.Succeeded, null);
+                }
+
                 if (FocusedElement(_app.Screen(CurrentScreenId)) is not { TrapsKeyboardFocus: true })
                 {
                     _focusIndex = focusable.Count == 0 ? -1 : (_focusIndex + 1) % focusable.Count;

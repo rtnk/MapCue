@@ -84,7 +84,8 @@ public class ScreenContractEndToEndTests
             await uow.Graph.ListSnapshotsAsync(CancellationToken.None),
             await uow.Graph.ListEdgesAsync(CancellationToken.None)));
         Assert.Equal(15, captures.Count(c => c.Kind == ScreenCaptureKind.FullHierarchy && c.Status == ScreenCaptureStatus.Captured));
-        Assert.Equal(15, captures.Count(c => c.Kind == ScreenCaptureKind.KeyboardFocus && c.Status == ScreenCaptureStatus.Captured));
+        Assert.Equal(6, captures.Count(c => c.Kind == ScreenCaptureKind.KeyboardFocus && c.Status == ScreenCaptureStatus.Captured));
+        Assert.Equal(9, captures.Count(c => c.Kind == ScreenCaptureKind.KeyboardFocus && c.Status == ScreenCaptureStatus.SkippedByPolicy));
         Assert.All(captures.Where(c => c.Kind == ScreenCaptureKind.FullHierarchy), c =>
         {
             var snapshot = snapshots.Single(s => s.SnapshotId == c.SnapshotId);
@@ -140,8 +141,17 @@ public class ScreenContractEndToEndTests
         Assert.NotEmpty(finding.EvidenceIds);
         Assert.Equal(A11yStatus.Present, Row(contracts.Single(c => Marker(c) == "screen.whatsnew"), AccessibilityTechnology.TalkBack).Inspected.Status);
 
-        // Keyboard: every target of every state reached and the focus cycle closed (FakeDevice moves focus over the clickable elements).
-        Assert.All(contracts, c => Assert.Equal(A11yStatus.Pass, Row(c, AccessibilityTechnology.Keyboard).Automated.Status));
+        // Keyboard: on screens with only safe and navigational actions every target was reached and the focus cycle closed (FakeDevice
+        // moves focus over the clickable elements). Screens with risky actions are never probed (a Tab may activate them, R-06).
+        string[] probed = ["screen.accounts", "screen.home", "screen.whatsnew"];
+        Assert.All(contracts.Where(c => probed.Contains(Marker(c))), c => Assert.Equal(A11yStatus.Pass, Row(c, AccessibilityTechnology.Keyboard).Automated.Status));
+        Assert.All(contracts.Where(c => !probed.Contains(Marker(c))), c =>
+        {
+            var keyboard = Row(c, AccessibilityTechnology.Keyboard).Automated;
+            Assert.Equal(A11yStatus.NotTested, keyboard.Status);
+            Assert.Contains("skipped by policy", keyboard.Method, StringComparison.Ordinal);
+            Assert.Empty(c.Keyboard.Observed);
+        });
         var home = contracts.Single(c => Marker(c) == "screen.home");
         Assert.All(home.Keyboard.Observed, g => Assert.True(g.CycleClosed && g.Unreached.Count == 0 && g.Status == A11yStatus.Pass));
         Assert.All(home.Keyboard.Observed, g => Assert.Equal(true, g.MatchesPredicted));
@@ -180,25 +190,52 @@ public class ScreenContractEndToEndTests
         var app = FakeDemoProfiles.Create();
         app = app with
         {
-            Screens = [.. app.Screens.Select(s => s with { Elements = [.. s.Elements.Select(e => e.ResourceId.EndsWith("/settings.notifications", StringComparison.Ordinal) ? e with { TrapsKeyboardFocus = true } : e)] })],
+            Screens = [.. app.Screens.Select(s => s with { Elements = [.. s.Elements.Select(e => e.ResourceId.EndsWith("/home.accounts", StringComparison.Ordinal) ? e with { TrapsKeyboardFocus = true } : e)] })],
         };
         await using var h = Create(app);
         await h.RunProfileAsync("basic");
 
         var contracts = await BuildAsync(h);
-        var settings = contracts.Single(c => Marker(c) == "screen.settings");
-        var graph = Assert.Single(settings.Keyboard.Observed);
+        var home = contracts.Single(c => Marker(c) == "screen.home");
+        var graph = Assert.Single(home.Keyboard.Observed);
         Assert.Equal(A11yStatus.Unverified, graph.Status);
         Assert.False(graph.CycleClosed);
         Assert.Contains("focusDidNotMove", graph.Detail!, StringComparison.Ordinal);
-        Assert.Contains("settings.notifications", graph.Detail!, StringComparison.Ordinal);
-        Assert.Equal(A11yStatus.Unverified, Row(settings, AccessibilityTechnology.Keyboard).Automated.Status);
-        Assert.DoesNotContain(settings.Accessibility.Findings, f => f.RuleId == "keyboard.unreachable");
+        Assert.Contains("home.accounts", graph.Detail!, StringComparison.Ordinal);
+        Assert.Equal(A11yStatus.Unverified, Row(home, AccessibilityTechnology.Keyboard).Automated.Status);
+        Assert.DoesNotContain(home.Accessibility.Findings, f => f.RuleId == "keyboard.unreachable");
 
         // A screen with one keyboard target that keeps the focus on it is fully covered (a cycle of one).
         var whatsNew = contracts.Single(c => Marker(c) == "screen.whatsnew");
         Assert.True(Assert.Single(whatsNew.Keyboard.Observed).CycleClosed);
         Assert.Equal(A11yStatus.Pass, Row(whatsNew, AccessibilityTechnology.Keyboard).Automated.Status);
+    }
+
+    [Fact]
+    public async Task A_tab_that_activates_the_focused_element_never_reaches_a_risky_action_and_stops_the_probe()
+    {
+        // Emulator, STEP-08 (Demo app run 41309332696): a further Tab activated the focused element (What's new closed, the purchase
+        // dialog of investments.buy opened, switches toggled). The probe must never run where that would be a risky action, and it stops as
+        // soon as the screen is not the probed state any more.
+        await using var h = Create(FakeDemoProfiles.Create() with { TabActivatesFocusedElement = true });
+        Assert.Equal(RunFinishReason.Exhausted, (await h.RunProfileAsync("basic")).Reason);
+        Assert.Equal(RunFinishReason.Exhausted, (await h.RunProfileAsync("investor")).Reason);
+
+        string[] risky = ["settings.notifications", "scenario.empty", "verify.sendcode", "verify.signout", "details.delete", "investments.buy", "profile.basic", "profile.investor", "settings.switchprofile"];
+        Assert.NotEmpty(h.Device.ActivatedByKey);
+        Assert.DoesNotContain(h.Device.ActivatedByKey, id => risky.Any(r => id.EndsWith("/" + r, StringComparison.Ordinal)));
+
+        var contracts = await BuildAsync(h);
+        var home = contracts.Single(c => Marker(c) == "screen.home");
+        Assert.All(home.Keyboard.Observed, g =>
+        {
+            Assert.Equal(A11yStatus.Unverified, g.Status);
+            Assert.False(g.CycleClosed);
+            Assert.Contains("screen changed", g.Detail!, StringComparison.Ordinal);
+            Assert.All(g.Order, key => Assert.Contains(home.Elements, e => e.ElementKey == key));
+        });
+        Assert.DoesNotContain(contracts, c => Row(c, AccessibilityTechnology.Keyboard).Automated.Status is A11yStatus.Pass or A11yStatus.Fail);
+        Assert.Equal(A11yStatus.NotTested, Row(contracts.Single(c => Marker(c) == "screen.investments"), AccessibilityTechnology.Keyboard).Automated.Status);
     }
 
     [Fact]
@@ -208,12 +245,16 @@ public class ScreenContractEndToEndTests
         Assert.Equal(RunFinishReason.Exhausted, (await h.RunProfileAsync("basic")).Reason);
 
         var contracts = await BuildAsync(h);
-        Assert.All(contracts, c => Assert.Equal(A11yStatus.Unverified, Row(c, AccessibilityTechnology.Keyboard).Automated.Status));
         var captures = await h.ReadAsync(uow => uow.Contracts.ListCapturesAsync(null, CancellationToken.None));
-        Assert.All(captures.Where(c => c.Kind == ScreenCaptureKind.KeyboardFocus), c => Assert.Equal(ScreenCaptureStatus.NoFocusObserved, c.Status));
+        var probes = captures.Where(c => c.Kind == ScreenCaptureKind.KeyboardFocus && c.Status != ScreenCaptureStatus.SkippedByPolicy).ToList();
+        Assert.Equal(3, probes.Count);
+        Assert.All(probes, c => Assert.Equal(ScreenCaptureStatus.NoFocusObserved, c.Status));
+        var probedStates = probes.Select(c => c.StateId).ToHashSet(StringComparer.Ordinal);
+        Assert.All(contracts.Where(c => c.States.Any(st => probedStates.Contains(st.StateId))), c => Assert.Equal(A11yStatus.Unverified, Row(c, AccessibilityTechnology.Keyboard).Automated.Status));
+        Assert.DoesNotContain(contracts, c => Row(c, AccessibilityTechnology.Keyboard).Automated.Status == A11yStatus.Pass);
 
-        // Three presses per state, then the probe gives up (focus is not observable this way).
-        Assert.Equal(3 * captures.Count(c => c.Kind == ScreenCaptureKind.KeyboardFocus), h.Device.KeyPresses);
+        // Three presses per probed state, then the probe gives up (focus is not observable this way).
+        Assert.Equal(3 * probes.Count, h.Device.KeyPresses);
     }
 
     [Fact]
@@ -355,6 +396,7 @@ public class ScreenContractEndToEndTests
         Assert.Equal(RunFinishReason.Exhausted, (await next.RunProfileAsync("basic", "seed-basic-2")).Reason);
         var captures = await next.ReadAsync(uow => uow.Contracts.ListCapturesAsync(null, CancellationToken.None));
         Assert.Equal(14, captures.Count);
-        Assert.All(captures, c => Assert.Equal(ScreenCaptureStatus.Captured, c.Status));
+        Assert.All(captures, c => Assert.Contains(c.Status, new[] { ScreenCaptureStatus.Captured, ScreenCaptureStatus.SkippedByPolicy }));
+        Assert.Equal(4, captures.Count(c => c.Status == ScreenCaptureStatus.SkippedByPolicy));
     }
 }

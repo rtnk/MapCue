@@ -613,6 +613,9 @@ Migracja `0007`, schemat [`schemas/screen-contract.v1.schema.json`](../schemas/s
     - po 3 naciśnięciach nadal nie ma fokusu (`noFocusObserved`);
     - aplikacja została opuszczona;
     - akcja się nie udała;
+  - **bramka polityki (R-06):** próba działa tylko na stanie, którego każda akcja oceniona w kontekście (`candidate_assessments`) jest `safe` albo `navigational`; inaczej (albo bez żadnej oceny) przechwycenie dostaje `SkippedByPolicy` bez dojścia do stanu i bez naciśnięcia. Powód: na emulatorze kolejny Tab **aktywował** element z fokusem (Demo app run 41309332696: zamknięcie What's new, okno zakupu `investments.buy`, prawdopodobnie przełączniki), więc naciśnięcie klawisza jest tak ryzykowne jak tapnięcie dowolnego celu stanu;
+  - po każdym naciśnięciu stan musi nadal być stanem próby; inaczej próba kończy się `screenChanged` (wynik `unverified`, w `detail` element, który prawdopodobnie został aktywowany);
+  - ten sam element z fokusem dwa razy z rzędu to `focusDidNotMove`, nigdy zamknięty cykl (wyjątek: jedyny cel stanu);
   - każde naciśnięcie to akcja urządzenia, liczona w `budgets.maxActions` (`RunCounters.KeyPresses`);
   - dokument `mapcue.focus-probe/1` (kroki, elementy z fokusem, cele klawiatury, przyczyna końca) jest blobem z dowodem `FocusProbe`.
 - **Kontrakt (`ScreenContractBuilder`, tylko baza i bloby, bez zegara):**
@@ -637,7 +640,7 @@ Migracja `0007`, schemat [`schemas/screen-contract.v1.schema.json`](../schemas/s
 |---|---|---|---|
 | TalkBack (Android) | `present` / `issues` / `notTested` (bez full) | `unsupported` (G-05) | `pass`/`fail` tylko z rekordu operatora, inaczej `notTested` |
 | VoiceOver (iOS) | `present` / `issues` (role `inferred`, G-03) | `unsupported` | jak wyżej; tylko fizyczne urządzenie (CAP-0114) |
-| Klawiatura (Android) | `unsupported` (kolejność z drzewa jest w `keyboard.predicted` jako `predicted`/`unverified`) | z próby Tab: `pass` tylko gdy cykl się zamknął i każdy cel dostał fokus we wszystkich wariantach; `fail` gdy cykl się zamknął bez jakiegoś celu (`keyboard.unreachable`); `unverified` bez obserwowalnego fokusu albo bez zamkniętego cyklu; `blocked` przy nieudanym przechwyceniu; `notTested` bez próby | rekord operatora |
+| Klawiatura (Android) | `unsupported` (kolejność z drzewa jest w `keyboard.predicted` jako `predicted`/`unverified`) | z próby Tab: `pass` tylko gdy cykl się zamknął i każdy cel dostał fokus we wszystkich wariantach; `fail` gdy cykl się zamknął bez jakiegoś celu (`keyboard.unreachable`); `unverified` bez obserwowalnego fokusu, bez zamkniętego cyklu albo po zmianie ekranu; `blocked` przy nieudanym przechwyceniu; `notTested` bez próby albo gdy próbę pominęła bramka polityki | rekord operatora |
 | Klawiatura (iOS) | `unsupported` | `unsupported` (G-04) | `unsupported` (rekord odrzucany) |
 | Technologia innej platformy | `unsupported` | `unsupported` | `unsupported` |
 

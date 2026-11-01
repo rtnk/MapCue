@@ -26,6 +26,12 @@ public enum ScreenCaptureStatus
 
     /// <summary>A device call failed.</summary>
     Failed,
+
+    /// <summary>
+    /// The keyboard probe was not run: a key press may activate the focused element (seen on the emulator, STEP-08), so it runs only on
+    /// states whose every assessed action in the context is safe or navigational.
+    /// </summary>
+    SkippedByPolicy,
 }
 
 /// <summary>

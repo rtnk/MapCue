@@ -208,6 +208,15 @@ Odtwarzalne skrypty: `docs/spikes/tapcue-smoke/`.
 ## 12. STEP-08 (ScreenContract i accessibility)
 
 - **`hierarchy` CLI** (`tapcue hierarchy --no-reinstall-driver`) jest źródłem snapshotu full zadania `AnalyzeScreen`. Atrybut `important-for-accessibility` (tylko Android, tylko w pełnej hierarchii) parsuje `TapCueParsers.ParseHierarchy` do `RawElement.ImportantForAccessibility`. Węzeł korzenia i pierwszy kontener okna nie mają atrybutów, więc dostają `null`. Nagrania Home (`recordings/`) mają ten atrybut na każdym węźle z klasą.
-- **`pressKey: Tab`** przez MCP `run` (szablon `- pressKey: Tab` + `waitForAnimationToEnd`, `check-syntax` per kształt jak każdy generowany flow). Fokus klawiatury odczytuje się z flagi `focused` w `inspect_screen` (MCP zachowuje `focused`, §3.2). Czy ta flaga odzwierciedla fokus klawiatury w aplikacji MAUI na emulatorze, to PoC architektury §14.2. Wynik jest w `docs/handovers/STEP-08.md` (job `android-explore`).
+- **`pressKey: Tab`** przez MCP `run` (szablon `- pressKey: Tab` + `waitForAnimationToEnd`, `check-syntax` per kształt jak każdy generowany flow; składnia przyjęta, flow wykonany). Fokus klawiatury odczytuje się z flagi `focused` w `inspect_screen` (MCP zachowuje `focused`, §3.2).
+- **Wynik PoC (architektura §14.2), emulator API 34, demo app MAUI, Demo app runy 41306424435 i 41309332696:**
+  - flaga `focused` zmienia się po `Tab`, więc fokus jest obserwowalny: pierwszy Tab ustawia fokus na pierwszym celu ekranu;
+  - **kolejny Tab aktywuje element z fokusem** zamiast przenieść fokus (inferred z obserwacji, mechanizm w TapCue/Maestro, Androidzie czy MAUI nieustalony):
+    - What's new: `whatsnew.close` → ekran Home;
+    - Details: `details.home` → Home;
+    - Investments: `investments.buy` → okno zakupu (`buttonPanel`);
+    - na przełącznikach (`scenario.empty`, `settings.notifications`) i na `verify.sendcode` fokus „stał”, co pasuje do aktywacji bez zmiany ekranu;
+  - wniosek: przez TapCue 0.1.0 Tab nie nadaje się do przejścia całego grafu fokusu, a naciśnięcie klawisza trzeba traktować jak tapnięcie (bramka polityki w MapCue, architektura §14.3);
+  - proponowany ticket do TapCue: `pressKey` z gwarancją samego `KEYCODE_TAB` (bez akcji na elemencie z fokusem) albo raport, co zrobił.
 - iOS: brak `Tab` (G-04) i brak typu elementu (G-03), więc role w kontrakcie iOS mają `roleLevel: inferred`.
 
