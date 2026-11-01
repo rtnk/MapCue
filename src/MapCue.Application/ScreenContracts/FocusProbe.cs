@@ -56,6 +56,9 @@ public static class FocusProbeStops
     public const string FocusStuck = "focusDidNotMove";
     public const string ActionFailed = "pressKeyFailed";
     public const string AppLeft = "appLeft";
+
+    /// <summary>After a press the screen was no longer the probed state: the key press most likely activated the focused element.</summary>
+    public const string ScreenChanged = "screenChanged";
 }
 
 /// <summary>

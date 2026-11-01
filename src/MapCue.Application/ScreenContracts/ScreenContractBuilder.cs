@@ -128,7 +128,9 @@ public static partial class ScreenContractBuilder
                 predicted.Add(new PredictedFocusOrder(view.Variant.ContextId, view.Variant.StateId, "predicted", A11yStatus.Unverified, "Reading order of the keyboard targets in the tree: top to bottom, then left to right (bounds), tree order for ties. Not observed with any assistive technology (CAP-0115).", PredictedOrder(view.Snapshot)));
             }
 
-            if (platform == Platform.Android && captures.TryGetValue((ScreenCaptureKind.KeyboardFocus, view.Variant.StateId, view.Variant.ContextId), out var probe))
+            if (platform == Platform.Android
+                && captures.TryGetValue((ScreenCaptureKind.KeyboardFocus, view.Variant.StateId, view.Variant.ContextId), out var probe)
+                && probe.Status != ScreenCaptureStatus.SkippedByPolicy)
             {
                 var graph = await FocusGraphAsync(view, probe, loader, ct);
                 observed.Add(graph);
@@ -425,7 +427,7 @@ public static partial class ScreenContractBuilder
             .Distinct(StringComparer.Ordinal)];
     }
 
-    private const string ProbeMethod = "pressKey Tab through TapCue, then the element reporting focused on a fast observation (MCP inspect_screen), until focus returns to the first focused element (architecture §14.2, PoC). Scope: every keyboard target of the state receives focus; activation is not checked.";
+    private const string ProbeMethod = "pressKey Tab through TapCue, then the element reporting focused on a fast observation (MCP inspect_screen), until focus returns to the first focused element (architecture §14.2, PoC); the probe stops when the screen changes (a press may activate the focused element) and runs only on states without risky actions. Scope: every keyboard target of the state receives focus; activation is not checked.";
 
     private static async Task<ObservedFocusGraph> FocusGraphAsync(VariantView view, ScreenCapture capture, SnapshotLoader loader, CancellationToken ct)
     {
@@ -458,6 +460,13 @@ public static partial class ScreenContractBuilder
         {
             status = A11yStatus.Unverified;
             detail = "no element reported focused after Tab: keyboard focus is not observable this way here (PoC result)";
+        }
+        else if (probe.StopReason == FocusProbeStops.ScreenChanged)
+        {
+            // A Tab press left the state (STEP-08 emulator: it activated the focused element); the order up to then is all there is.
+            status = A11yStatus.Unverified;
+            var press = probe.Steps.Count;
+            detail = $"the screen changed after press {press}: the key press most likely activated {order[^1]}; the probe stopped";
         }
         else if (!probe.CycleClosed)
         {
@@ -546,9 +555,16 @@ public static partial class ScreenContractBuilder
         AutomatedCell KeyboardAutomated()
         {
             var probes = captures.Count(c => c.Kind == ScreenCaptureKind.KeyboardFocus);
+            var skipped = captures.Count(c => c.Kind == ScreenCaptureKind.KeyboardFocus && c.Status == ScreenCaptureStatus.SkippedByPolicy);
             if (observed.Count == 0)
             {
-                return new AutomatedCell(A11yStatus.NotTested, "No keyboard focus probe (AuditAccessibility, contracts.keyboardFocus) of this screen.", 0, []);
+                return new AutomatedCell(
+                    A11yStatus.NotTested,
+                    skipped > 0
+                        ? $"Keyboard focus probe skipped by policy on {skipped} variant(s): a Tab press may activate the focused element and the screen has actions that are not safe or navigational (R-06)."
+                        : "No keyboard focus probe (AuditAccessibility, contracts.keyboardFocus) of this screen.",
+                    0,
+                    []);
             }
 
             var statuses = observed.Select(o => o.Status).ToList();
@@ -560,7 +576,7 @@ public static partial class ScreenContractBuilder
             var counts = string.Join(", ", statuses.GroupBy(s => s, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key} {g.Count()}"));
             return new AutomatedCell(
                 status,
-                $"{ProbeMethod} Variants probed: {observed.Count} of {views.Count} ({counts}); captures: {probes}.",
+                $"{ProbeMethod} Variants probed: {observed.Count} of {views.Count} ({counts}); captures: {probes}; skipped by policy: {skipped}.",
                 findings.Count(f => f.Technology == nameof(AccessibilityTechnology.Keyboard)),
                 [.. observed.SelectMany(o => o.EvidenceIds).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)]);
         }
