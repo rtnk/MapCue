@@ -226,6 +226,19 @@ public class ExplorationEngineTests
     }
 
     [Fact]
+    public async Task Failed_setup_flow_reports_the_device_detail_in_the_progress()
+    {
+        // Demo app run 41252379887: "reset setup flow Failed (Unknown)" alone did not say which flow step failed.
+        var app = FakeDemoApp.Basic() with { SetupScreenId = null, SetupScreens = new Dictionary<string, string>(StringComparer.Ordinal) };
+        await using var h = ExplorationHarness.Create(app);
+
+        var result = await h.RunAsync();
+
+        Assert.Equal(RunFinishReason.PreflightFailed, result.Reason);
+        Assert.Contains("reset      setup flow Rejected (None): flows are not supported by this fake app", h.Progress);
+    }
+
+    [Fact]
     public async Task Preflight_refuses_a_start_screen_outside_the_app()
     {
         var app = FakeDemoApp.Basic() with { SetupScreenId = "launcher" };
