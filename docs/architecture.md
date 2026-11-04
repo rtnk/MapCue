@@ -632,7 +632,7 @@ Migracja `0007`, schemat [`schemas/screen-contract.v1.schema.json`](../schemas/s
   - `label.missing`: cel bez tekstu, opisu i podpowiedzi, także bez podpisanego potomka;
   - `label.duplicate`;
   - `a11y.hidden`: `important-for-accessibility=false` na celu;
-  - `target.small`: < 48 px; gęstość ekranu nieznana, więc rozmiar w dp jest `inferred`;
+  - `target.small`: < 48 px; gęstość ekranu nieznana, więc rozmiar w dp jest `inferred` (reguła działa bez gęstości, decyzja 2026-11-04);
   - wynik to „do sprawdzenia”, nigdy werdykt.
   - **Odstępstwo od §14.2:** reguły na drzewie dla TalkBack są tu poziomem `inspected`, a nie `automated`. Drzewo nie mówi, co czytnik faktycznie ogłosi, a test DoD wymaga braku PASS z drzewa. Komórka `automated` TalkBack/VoiceOver to `unsupported` (G-05).
 - **Macierz** (schemat typuje komórkę per poziom; komórka `inspected` nie może mieć statusu `pass`):
