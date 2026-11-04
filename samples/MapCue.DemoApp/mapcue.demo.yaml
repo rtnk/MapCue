@@ -11,8 +11,8 @@ allowlist:
 
 budgets:
   maxDepth: 8
-  # STEP-08: every Tab press of the keyboard focus probe is a device action too.
-  maxActions: 400
+  # Exploration plus the navigation to every state for its full hierarchy (STEP-08).
+  maxActions: 200
   maxDuration: 30m
   uiSettleTimeout: 5s
   actionTimeout: 30s
@@ -32,12 +32,13 @@ identity:
   # A profile shows a few elements more or less on a shared screen (the Investments tab): a variant, not a new state (R-04).
   profileVariantMaxDelta: 2
 
-# STEP-08: after the exploration of a context, every state gets a full hierarchy (AnalyzeScreen) and a keyboard focus probe with Tab
-# (AuditAccessibility, Android PoC); `mapcue contract build` turns them into screen contracts.
+# STEP-08: after the exploration of a context, every state gets a full hierarchy (AnalyzeScreen); `mapcue contract build` turns them
+# into screen contracts. The keyboard focus probe (AuditAccessibility, pressKey Tab) is off in the demo (decision 2026-11-04): on the
+# emulator a further Tab activated the focused element (Demo app run 41309332696, R-06), so the probe gives no focus graph here, only
+# `unverified`/`notTested`. The keyboard cells of the demo contracts are therefore `notTested`.
 contracts:
   analyzeScreens: true
-  keyboardFocus: true
-  maxTabPresses: 12
+  keyboardFocus: false
 
 profiles:
   - profileId: basic

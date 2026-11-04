@@ -121,7 +121,7 @@ Oczekiwania wobec `mapcue contract build` po eksploracji obu profili z sekcją `
 - `tab.investments` ma w kontrakcie Home, Accounts i Settings `visibleWhen` z capability `investments` (po obu profilach `observed`).
 - Przełączniki `scenario.empty` i `settings.notifications` nie mają tekstu ani opisu (MAUI `Switch` bez etykiety). Reguła drzewa label.missing (brak etykiety) daje dla nich znalezisko „do sprawdzenia” (poziom `inspected`). Komórka TalkBack `inspected` ekranów Wybór profilu i Settings to `issues`, nigdy `pass`.
 - TalkBack `automated` = `unsupported` (G-05), `assistiveVerified` = `notTested` bez rekordu operatora. VoiceOver na Androidzie = `unsupported` we wszystkich komórkach.
-- Klawiatura (`automated`, PoC): wynik próby Tab na emulatorze jest raportowany per stan (`Keyboard probe`), a nie wymuszany. `pass` oznacza, że cykl fokusu się zamknął i każdy cel dostał fokus. `unverified` oznacza, że fokus nie był obserwowalny albo cykl się nie zamknął.
+- Klawiatura (`automated`): próba Tab jest w demo wyłączona (`contracts.keyboardFocus: false`, decyzja Roberta 2026-11-04). Na emulatorze kolejny Tab aktywował element z fokusem (R-06), więc komórki klawiatury kontraktów demo to `notTested`. Wyniki próby z runów 41306424435, 41309332696 i 41311706432 są w `docs/handovers/STEP-08.md`.
 
 ## Graf
 

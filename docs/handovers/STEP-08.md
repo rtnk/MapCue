@@ -188,7 +188,7 @@
 - **Rekordy operatora** są idempotentne: ten sam ekran, kontekst, technologia, element, właściwość, wynik i dowód dają ten sam identyfikator. Nie ma komendy do wycofania rekordu (P1).
 - **Pytania do Roberta:**
   1. czy `target.small` ma pozostać w regułach przy nieznanej gęstości, czy wymagać gęstości urządzenia (wtedy `notTested` bez niej);
-  2. czy próbę klawiatury zostawić jako PoC (`unverified`), wyłączyć domyślnie w demo, czy zgłosić ticket do TapCue (`pressKey` aktywuje element z fokusem) i wrócić do niej po poprawce;
+  2. ~~czy próbę klawiatury zostawić jako PoC, wyłączyć w demo, czy zgłosić ticket do TapCue~~ **Decyzja Roberta (2026-11-04): wyłączyć w demo.** `mapcue.demo.yaml` ma `contracts.keyboardFocus: false` (`analyzeScreens` zostaje), `maxActions` 400 → 200; komórki klawiatury kontraktów demo to `notTested`. Kod próby i bramka polityki zostają (opcja domyślnie wyłączona); ticket do TapCue pozostaje propozycją dla właściciela;
   3. otwarte pytania STEP-07 (`--all-profiles`, `profileVariantMaxDelta`) i STEP-06 pozostają.
 
 ## Stan roadmapy
