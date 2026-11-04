@@ -617,6 +617,7 @@ Migracja `0007`, schemat [`schemas/screen-contract.v1.schema.json`](../schemas/s
   - po każdym naciśnięciu stan musi nadal być stanem próby; inaczej próba kończy się `screenChanged` (wynik `unverified`, w `detail` element, który prawdopodobnie został aktywowany);
   - ten sam element z fokusem dwa razy z rzędu to `focusDidNotMove`, nigdy zamknięty cykl (wyjątek: jedyny cel stanu);
   - każde naciśnięcie to akcja urządzenia, liczona w `budgets.maxActions` (`RunCounters.KeyPresses`);
+  - w demo (`samples/MapCue.DemoApp/mapcue.demo.yaml`) próba jest wyłączona (`keyboardFocus: false`, decyzja 2026-11-04), bo Tab przez TapCue 0.1.0 aktywuje element z fokusem;
   - dokument `mapcue.focus-probe/1` (kroki, elementy z fokusem, cele klawiatury, przyczyna końca) jest blobem z dowodem `FocusProbe`.
 - **Kontrakt (`ScreenContractBuilder`, tylko baza i bloby, bez zegara):**
   - jeden kontrakt na ekran logiczny i grupę porównania (app, platforma, build, locale; jak w §5.7);
@@ -631,7 +632,7 @@ Migracja `0007`, schemat [`schemas/screen-contract.v1.schema.json`](../schemas/s
   - `label.missing`: cel bez tekstu, opisu i podpowiedzi, także bez podpisanego potomka;
   - `label.duplicate`;
   - `a11y.hidden`: `important-for-accessibility=false` na celu;
-  - `target.small`: < 48 px; gęstość ekranu nieznana, więc rozmiar w dp jest `inferred`;
+  - `target.small`: < 48 px; gęstość ekranu nieznana, więc rozmiar w dp jest `inferred` (reguła działa bez gęstości, decyzja 2026-11-04);
   - wynik to „do sprawdzenia”, nigdy werdykt.
   - **Odstępstwo od §14.2:** reguły na drzewie dla TalkBack są tu poziomem `inspected`, a nie `automated`. Drzewo nie mówi, co czytnik faktycznie ogłosi, a test DoD wymaga braku PASS z drzewa. Komórka `automated` TalkBack/VoiceOver to `unsupported` (G-05).
 - **Macierz** (schemat typuje komórkę per poziom; komórka `inspected` nie może mieć statusu `pass`):

@@ -38,6 +38,11 @@ public class ConfigLoaderTests
         Assert.Empty(settings.Policy.RiskRules);
         var rule = Assert.Single(MapCue.Application.Profiles.ProfileSwitchRules.For(settings, settings.Profiles[0]));
         Assert.True(rule.Matches("com.mapcue.demoapp:id/profile.investor", []));
+
+        // STEP-08: full hierarchies for the contracts, but no keyboard focus probe in the demo (a Tab press activated the focused
+        // element on the emulator, R-06; decision 2026-11-04).
+        Assert.True(settings.Contracts.AnalyzeScreens);
+        Assert.False(settings.Contracts.KeyboardFocus);
     }
 
     [Fact]

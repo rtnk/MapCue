@@ -181,14 +181,14 @@
   - wyłącznie `target.small` (przyciski 280×37 px, zakładki 73–99×23 px; emulator API 34 o niskiej rozdzielczości, gęstość nieznana, próg 48 px to heurystyka);
   - `label.missing` dla dwóch przełączników bez etykiety (`scenario.empty`, `settings.notifications`; prawdziwy problem demo app, zgodnie z `expected-graph.md`).
 
-  Znaleziska to „do sprawdzenia” (`inspected`), nie werdykt. Kalibracja progu (gęstość z `adb shell wm density` albo z TapCue) to pytanie do Roberta.
+  Znaleziska to „do sprawdzenia” (`inspected`), nie werdykt. Reguła działa bez znajomości gęstości (decyzja Roberta 2026-11-04).
 - **Reguły drzewa dla TalkBack to poziom `inspected`, nie `automated`** (odstępstwo od tabeli §14.2, opisane w §14.3): drzewo nie mówi, co ogłosi czytnik, a DoD wymaga braku PASS z drzewa.
 - **Snapshoty kroków próby klawiatury** (bloby surowe i znormalizowane) są wskazane tylko z dokumentu próby, nie z tabeli `evidence`. Przyszłe `mapcue gc` musi je traktować jako osiągalne przez dokument `FocusProbe`.
 - **Przechwytywanie wydłuża demo:** `basic` 211 s → 346 s, `investor` 227 s → 376 s. Każde naciśnięcie Tab to jedno `run` MCP.
 - **Rekordy operatora** są idempotentne: ten sam ekran, kontekst, technologia, element, właściwość, wynik i dowód dają ten sam identyfikator. Nie ma komendy do wycofania rekordu (P1).
 - **Pytania do Roberta:**
-  1. czy `target.small` ma pozostać w regułach przy nieznanej gęstości, czy wymagać gęstości urządzenia (wtedy `notTested` bez niej);
-  2. czy próbę klawiatury zostawić jako PoC (`unverified`), wyłączyć domyślnie w demo, czy zgłosić ticket do TapCue (`pressKey` aktywuje element z fokusem) i wrócić do niej po poprawce;
+  1. ~~czy `target.small` ma pozostać w regułach przy nieznanej gęstości~~ **Decyzja Roberta (2026-11-04): ma działać.** Reguła zostaje bez znajomości gęstości: próg 48 px, znalezisko poziomu `inspected` („do sprawdzenia”, rozmiar w dp `inferred`), nigdy werdykt;
+  2. ~~czy próbę klawiatury zostawić jako PoC, wyłączyć w demo, czy zgłosić ticket do TapCue~~ **Decyzja Roberta (2026-11-04): wyłączyć w demo.** `mapcue.demo.yaml` ma `contracts.keyboardFocus: false` (`analyzeScreens` zostaje), `maxActions` 400 → 200; komórki klawiatury kontraktów demo to `notTested`. Kod próby i bramka polityki zostają (opcja domyślnie wyłączona); ticket do TapCue pozostaje propozycją dla właściciela;
   3. otwarte pytania STEP-07 (`--all-profiles`, `profileVariantMaxDelta`) i STEP-06 pozostają.
 
 ## Stan roadmapy
